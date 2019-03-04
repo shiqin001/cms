@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 using NDesk.Options;
 using SiteServer.Utils;
 
@@ -31,19 +32,18 @@ namespace SiteServer.Cli.Core
                 options.Parse(args);
                 return true;
             }
-            catch (OptionException ex)
+            catch
             {
-                PrintError(ex.Message);
                 return false;
             }
         }
 
-        public static void PrintLine()
+        public static async Task PrintRowLineAsync()
         {
-            Console.WriteLine(new string('-', ConsoleTableWidth));
+            await Console.Out.WriteLineAsync(new string('-', ConsoleTableWidth));
         }
 
-        public static void PrintRow(params string[] columns)
+        public static async Task PrintRowAsync(params string[] columns)
         {
             int width = (ConsoleTableWidth - columns.Length) / columns.Length;
             string row = "|";
@@ -53,84 +53,83 @@ namespace SiteServer.Cli.Core
                 row += AlignCentre(column, width) + "|";
             }
 
-            Console.WriteLine(row);
+            await Console.Out.WriteLineAsync(row);
         }
 
-        public static void PrintProgressBar(int progress, int total)
+        public static async Task PrintErrorAsync(string errorMessage)
         {
-            try
-            {
-                //draw empty progress bar
-                Console.CursorLeft = 0;
-                Console.Write("["); //start
-                Console.CursorLeft = 32;
-                Console.Write("]"); //end
-                Console.CursorLeft = 1;
-                float onechunk = 30.0f / total;
-
-                //draw filled part
-                int position = 1;
-                for (int i = 0; i < onechunk * progress; i++)
-                {
-                    Console.BackgroundColor = ConsoleColor.Green;
-                    Console.CursorLeft = position++;
-                    Console.Write(" ");
-                }
-
-                //draw unfilled part
-                for (int i = position; i <= 31; i++)
-                {
-                    Console.BackgroundColor = ConsoleColor.Gray;
-                    Console.CursorLeft = position++;
-                    Console.Write(" ");
-                }
-
-                //draw totals
-                Console.CursorLeft = 35;
-                Console.BackgroundColor = ConsoleColor.Black;
-                Console.Write(Convert.ToDouble(progress / (double) total).ToString("0%") +
-                              "    "); //blanks at the end remove any excess
-            }
-            catch
-            {
-                // ignored
-            }
+            await Console.Out.WriteLineAsync();
+            await Console.Out.WriteLineAsync(errorMessage);
         }
 
-        public static void PrintProgressBarEnd()
+        public static async Task PrintRowLine()
         {
-            try
-            {
-                Console.CursorLeft = 0;
-            }
-            catch
-            {
-                // ignored
-            }
+            await Console.Out.WriteLineAsync(new string('-', ConsoleTableWidth));
         }
 
-        public static void PrintError(string errorMessage)
+        public static async Task PrintRow(params string[] columns)
         {
-            Console.WriteLine();
-            var color = Console.ForegroundColor;
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.Error.WriteLine(errorMessage);
-            Console.ForegroundColor = color;
+            int width = (ConsoleTableWidth - columns.Length) / columns.Length;
+            string row = "|";
+
+            foreach (string column in columns)
+            {
+                row += AlignCentre(column, width) + "|";
+            }
+
+            await Console.Out.WriteLineAsync(row);
         }
 
-        public static void LogErrors(string commandName, List<TextLogInfo> logs)
+        public static async Task PrintError(string errorMessage)
         {
+            await Console.Out.WriteLineAsync();
+            await Console.Out.WriteLineAsync(errorMessage);
+        }
+
+        public static string CreateErrorLogFile(string commandName)
+        {
+            var filePath = PathUtils.Combine(PhysicalApplicationPath, $"{commandName}.error.log");
+            FileUtils.DeleteFileIfExists(filePath);
+            return filePath;
+        }
+
+        public static async Task AppendErrorLogsAsync(string filePath, List<TextLogInfo> logs)
+        {
+            if (logs == null || logs.Count <= 0) return;
+
+            if (!FileUtils.IsFileExists(filePath))
+            {
+                await FileUtils.WriteTextAsync(filePath, string.Empty);
+            }
+
             var builder = new StringBuilder();
-            if (logs != null && logs.Count > 0)
+
+            foreach (var log in logs)
             {
-                foreach (var log in logs)
-                {
-                    builder.AppendLine();
-                    builder.Append(log);
-                    builder.AppendLine();
-                }
+                builder.AppendLine();
+                builder.Append(log);
+                builder.AppendLine();
             }
-            FileUtils.WriteText(PathUtils.Combine(PhysicalApplicationPath, $"{commandName}.error.log"), Encoding.UTF8, builder.ToString());
+
+            await FileUtils.AppendTextAsync(filePath, builder.ToString());
+        }
+
+        public static async Task AppendErrorLogAsync(string filePath, TextLogInfo log)
+        {
+            if (log == null) return;
+
+            if (!FileUtils.IsFileExists(filePath))
+            {
+                await FileUtils.WriteTextAsync(filePath, string.Empty);
+            }
+
+            var builder = new StringBuilder();
+
+            builder.AppendLine();
+            builder.Append(log);
+            builder.AppendLine();
+
+            await FileUtils.AppendTextAsync(filePath, builder.ToString());
         }
     }
 }

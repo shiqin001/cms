@@ -5,7 +5,8 @@ using System.Collections.Specialized;
 using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.BackgroundPages.Controls;
-using SiteServer.CMS.Core;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Database.Core;
 using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.BackgroundPages.Settings
@@ -64,7 +65,7 @@ namespace SiteServer.BackgroundPages.Settings
 
             if (IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.Chart);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.Chart);
 
             DdlSiteId.Items.Add(new ListItem("<<全部站点>>", "0"));
             var siteIdList = SiteManager.GetSiteIdListOrderByLevel();
@@ -115,8 +116,8 @@ yArrayUpdate.push('{yValueUpdate}');";
                 //x轴信息
                 SetXHashtable(key, siteInfo.SiteName);
                 //y轴信息
-                SetYHashtable(key, DataProvider.ContentDao.GetCountOfContentAdd(siteInfo.TableName, siteInfo.Id, siteInfo.Id, EScopeType.All, _begin, _end, string.Empty, ETriState.All), YTypeNew);
-                SetYHashtable(key, DataProvider.ContentDao.GetCountOfContentUpdate(siteInfo.TableName, siteInfo.Id, siteInfo.Id, EScopeType.All, _begin, _end, string.Empty), YTypeUpdate);
+                SetYHashtable(key, DataProvider.ContentRepository.GetCountOfContentAdd(siteInfo.TableName, siteInfo.Id, siteInfo.Id, EScopeType.All, _begin, _end, string.Empty, ETriState.All), YTypeNew);
+                SetYHashtable(key, DataProvider.ContentRepository.GetCountOfContentUpdate(siteInfo.TableName, siteInfo.Id, siteInfo.Id, EScopeType.All, _begin, _end, string.Empty), YTypeUpdate);
             }
 
             RptContents.DataSource = siteIdList;

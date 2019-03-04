@@ -6,16 +6,23 @@ using SiteServer.CMS.StlParser.Utility;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "无间隔滚动", Description = "通过 stl:marquee 标签在模板中创建一个能够无间隔滚动的内容块")]
+    [StlElement(Title = "无间隔滚动", Description = "通过 stl:marquee 标签在模板中创建一个能够无间隔滚动的内容块")]
     public class StlMarquee
 	{
 		private StlMarquee(){}
 		public const string ElementName = "stl:marquee";
 
-		private static readonly Attr ScrollDelay = new Attr("scrollDelay", "滚动延迟时间（毫秒）");
-		private static readonly Attr Direction = new Attr("direction", "滚动方向");
-		private static readonly Attr Width = new Attr("width", "宽度");
-		private static readonly Attr Height = new Attr("height", "高度");
+		[StlAttribute(Title = "滚动延迟时间（毫秒）")]
+        private const string ScrollDelay = nameof(ScrollDelay);
+
+		[StlAttribute(Title = "滚动方向")]
+        private const string Direction = nameof(Direction);
+
+		[StlAttribute(Title = "宽度")]
+        private const string Width = nameof(Width);
+
+		[StlAttribute(Title = "高度")]
+        private const string Height = nameof(Height);
 
         public const string DirectionVertical = "vertical";         //垂直
         public const string DirectionHorizontal = "horizontal";		//水平
@@ -28,9 +35,9 @@ namespace SiteServer.CMS.StlParser.StlElement
 
         internal static string Parse(PageInfo pageInfo, ContextInfo contextInfo)
 		{
-            if (string.IsNullOrEmpty(contextInfo.InnerXml)) return string.Empty;
+            if (string.IsNullOrEmpty(contextInfo.InnerHtml)) return string.Empty;
 
-            var innerBuilder = new StringBuilder(contextInfo.InnerXml);
+            var innerBuilder = new StringBuilder(contextInfo.InnerHtml);
             StlParserManager.ParseInnerContent(innerBuilder, pageInfo, contextInfo);
             var scrollHtml = innerBuilder.ToString();
 
@@ -39,22 +46,22 @@ namespace SiteServer.CMS.StlParser.StlElement
             var width = "width:100%;";
             var height = string.Empty;
 
-            foreach (var name in contextInfo.Attributes.Keys)
+            foreach (var name in contextInfo.Attributes.AllKeys)
             {
                 var value = contextInfo.Attributes[name];
 
-                if (StringUtils.EqualsIgnoreCase(name, ScrollDelay.Name))
+                if (StringUtils.EqualsIgnoreCase(name, ScrollDelay))
                 {
                     scrollDelay = TranslateUtils.ToInt(value, 40);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Direction.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Direction))
                 {
                     if (value.ToLower().Equals(DirectionHorizontal.ToLower()))
                     {
                         direction = DirectionHorizontal;
                     }
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Width.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Width))
                 {
                     value = value.Trim();
                     if (!string.IsNullOrEmpty(value))
@@ -69,7 +76,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         }
                     }
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Height.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Height))
                 {
                     value = value.Trim();
                     if (!string.IsNullOrEmpty(value))

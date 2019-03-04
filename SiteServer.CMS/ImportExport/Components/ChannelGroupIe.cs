@@ -1,12 +1,13 @@
 ﻿using System.Collections.Generic;
 using Atom.Core;
+using SiteServer.CMS.Caches;
 using SiteServer.Utils;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
 
 namespace SiteServer.CMS.ImportExport.Components
 {
-	public class ChannelGroupIe
+	public static class ChannelGroupIe
 	{
 		public static AtomEntry Export(ChannelGroupInfo groupInfo)
 		{
@@ -27,11 +28,17 @@ namespace SiteServer.CMS.ImportExport.Components
 
 	        var groupName = AtomUtility.GetDcElementContent(entry.AdditionalElements, new List<string> { nameof(ChannelGroupInfo.GroupName), "NodeGroupName" });
 	        if (string.IsNullOrEmpty(groupName)) return true;
-	        if (DataProvider.ChannelGroupDao.IsExists(siteId, groupName)) return true;
+	        if (ChannelGroupManager.IsExists(siteId, groupName)) return true;
 
 	        var taxis = TranslateUtils.ToInt(AtomUtility.GetDcElementContent(entry.AdditionalElements, nameof(ChannelGroupInfo.Taxis)));
 	        var description = AtomUtility.GetDcElementContent(entry.AdditionalElements, nameof(ChannelGroupInfo.Description));
-	        DataProvider.ChannelGroupDao.Insert(new ChannelGroupInfo(groupName, siteId, taxis, description));
+	        DataProvider.ChannelGroup.Insert(new ChannelGroupInfo
+	        {
+                GroupName = groupName,
+	            SiteId = siteId,
+	            Taxis = taxis,
+	            Description = description
+            });
 
 	        return true;
 	    }

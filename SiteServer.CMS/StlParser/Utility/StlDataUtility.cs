@@ -1,46 +1,48 @@
 ﻿using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Data;
-using System.Xml;
+using System.Linq;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Stl;
 using SiteServer.Utils;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
+using SiteServer.CMS.Core.Enumerations;
+using SiteServer.CMS.Database.Attributes;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
 using SiteServer.CMS.StlParser.Model;
-using SiteServer.CMS.StlParser.StlElement;
 using SiteServer.CMS.Plugin;
-using SiteServer.CMS.StlParser.Cache;
 using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.CMS.StlParser.Utility
 {
-    public class StlDataUtility
+    public static class StlDataUtility
     {
         public static int GetChannelIdByChannelIdOrChannelIndexOrChannelName(int siteId, int channelId, string channelIndex, string channelName)
         {
-            var retval = channelId;
+            var retVal = channelId;
 
             if (!string.IsNullOrEmpty(channelIndex))
             {
-                var theChannelId = Node.GetIdByIndexName(siteId, channelIndex);
+                var theChannelId = ChannelManager.GetChannelIdByIndexName(siteId, channelIndex);
                 if (theChannelId != 0)
                 {
-                    retval = theChannelId;
+                    retVal = theChannelId;
                 }
             }
             if (!string.IsNullOrEmpty(channelName))
             {
-                var theChannelId = Node.GetIdByParentIdAndChannelName(siteId, retval, channelName, true);
+                var theChannelId = ChannelManager.GetChannelIdByParentIdAndChannelName(siteId, retVal, channelName, true);
                 if (theChannelId == 0)
                 {
-                    theChannelId = Node.GetIdByParentIdAndChannelName(siteId, siteId, channelName, true);
+                    theChannelId = ChannelManager.GetChannelIdByParentIdAndChannelName(siteId, siteId, channelName, true);
                 }
                 if (theChannelId != 0)
                 {
-                    retval = theChannelId;
+                    retVal = theChannelId;
                 }
             }
 
-            return retval;
+            return retVal;
         }
 
         public static int GetChannelIdByLevel(int siteId, int channelId, int upLevel, int topLevel)
@@ -90,114 +92,40 @@ namespace SiteServer.CMS.StlParser.Utility
 
         public static List<int> GetChannelIdList(int siteId, int channelId, string orderByString, EScopeType scopeType, string groupChannel, string groupChannelNot, bool isImageExists, bool isImage, int totalNum, string where)
         {
-            var whereString = Node.GetWhereString(siteId, groupChannel, groupChannelNot, isImageExists, isImage, where);
+            var whereString = StlChannelCache.GetWhereString(siteId, groupChannel, groupChannelNot, isImageExists, isImage, where);
             var channelInfo = ChannelManager.GetChannelInfo(siteId, channelId);
             var channelIdList = ChannelManager.GetChannelIdList(channelInfo, scopeType, groupChannel, groupChannelNot, string.Empty);
-            return Node.GetIdListByTotalNum(channelIdList, totalNum, orderByString, whereString);
+            return StlChannelCache.GetIdListByTotalNum(channelIdList, totalNum, orderByString, whereString);
         }
 
         //public static int GetChannelIdByChannelIDOrChannelIndexOrChannelName(int siteID, int channelID, string channelIndex, string channelName)
         //{
-        //    int retval = channelID;
+        //    int retVal = channelID;
         //    if (!string.IsNullOrEmpty(channelIndex))
         //    {
         //        int theChannelId = DataProvider.NodeDAO.GetChannelIdByNodeIndexName(siteID, channelIndex);
         //        if (theChannelId != 0)
         //        {
-        //            retval = theChannelId;
+        //            retVal = theChannelId;
         //        }
         //    }
         //    if (!string.IsNullOrEmpty(channelName))
         //    {
-        //        int theChannelId = DataProvider.NodeDAO.GetChannelIdByParentIDAndNodeName(retval, channelName, true);
+        //        int theChannelId = DataProvider.NodeDAO.GetChannelIdByParentIDAndNodeName(retVal, channelName, true);
         //        if (theChannelId == 0)
         //        {
         //            theChannelId = DataProvider.NodeDAO.GetChannelIdByParentIDAndNodeName(siteID, channelName, true);
         //        }
         //        if (theChannelId != 0)
         //        {
-        //            retval = theChannelId;
+        //            retVal = theChannelId;
         //        }
         //    }
-        //    return retval;
+        //    return retVal;
         //}
 
-        public static ETaxisType GetETaxisTypeByOrder(string order, bool isChannel, ETaxisType defaultType)
-        {
-            var taxisType = defaultType;
-            if (!string.IsNullOrEmpty(order))
-            {
-                if (isChannel)
-                {
-                    if (order.ToLower().Equals(StlParserUtility.OrderDefault.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByTaxis;
-                    }
-                    else if (order.ToLower().Equals(StlParserUtility.OrderBack.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByTaxisDesc;
-                    }
-                    else if (order.ToLower().Equals(StlParserUtility.OrderAddDate.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByAddDate;
-                    }
-                    else if (order.ToLower().Equals(StlParserUtility.OrderAddDateBack.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByAddDateDesc;
-                    }
-                    else if (order.ToLower().Equals(StlParserUtility.OrderHits.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByHits;
-                    }
-                }
-                else
-                {
-                    if (order.ToLower().Equals(StlParserUtility.OrderDefault.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByTaxisDesc;
-                    }
-                    else if (order.ToLower().Equals(StlParserUtility.OrderBack.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByTaxis;
-                    }
-                    else if (order.ToLower().Equals(StlParserUtility.OrderAddDate.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByAddDate;
-                    }
-                    else if (order.ToLower().Equals(StlParserUtility.OrderAddDateBack.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByAddDateDesc;
-                    }
-                    else if (order.ToLower().Equals(StlParserUtility.OrderLastEditDate.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByLastEditDate;
-                    }
-                    else if (order.ToLower().Equals(StlParserUtility.OrderAddDateBack.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByLastEditDateDesc;
-                    }
-                    else if (order.ToLower().Equals(StlParserUtility.OrderHits.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByHits;
-                    }
-                    else if (order.ToLower().Equals(StlParserUtility.OrderHitsByDay.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByHitsByDay;
-                    }
-                    else if (order.ToLower().Equals(StlParserUtility.OrderHitsByWeek.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByHitsByWeek;
-                    }
-                    else if (order.ToLower().Equals(StlParserUtility.OrderHitsByMonth.ToLower()))
-                    {
-                        taxisType = ETaxisType.OrderByHitsByMonth;
-                    }
-                }
-            }
-            return taxisType;
-        }
-
-        public static string GetChannelOrderByString(int siteId, string orderValue, ETaxisType defaultType)
+        
+        public static string GetChannelOrderByString(string orderValue, ETaxisType defaultType)
         {
             var taxisType = defaultType;
             var orderByString = string.Empty;
@@ -236,7 +164,7 @@ namespace SiteServer.CMS.StlParser.Utility
             return ETaxisTypeUtils.GetChannelOrderByString(taxisType, orderByString, null);
         }
 
-        public static string GetContentOrderByString(int siteId, string orderValue, ETaxisType defaultType)
+        public static string GetContentOrderByString(string orderValue, ETaxisType defaultType)
         {
             var taxisType = defaultType;
             var orderByString = string.Empty;
@@ -299,29 +227,29 @@ namespace SiteServer.CMS.StlParser.Utility
         {
             if (!ChannelManager.IsExists(siteInfo.Id, channelId)) return string.Empty;
 
-            var nodeInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
-            var tableName = ChannelManager.GetTableName(siteInfo, nodeInfo);
+            var channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+            var tableName = ChannelManager.GetTableName(siteInfo, channelInfo);
 
-            var sqlWhereString = ChannelManager.IsContentModelPlugin(siteInfo, nodeInfo)
-                ? Content.GetStlWhereString(siteInfo.Id, listInfo.GroupContent, listInfo.GroupContentNot,
+            var sqlWhereString = ChannelManager.IsContentModelPlugin(channelInfo)
+                ? StlContentCache.GetStlWhereString(siteInfo.Id, listInfo.GroupContent, listInfo.GroupContentNot,
                     listInfo.Tags, listInfo.IsTopExists, listInfo.IsTop, listInfo.Where)
-                : Content.GetStlWhereString(siteInfo.Id, listInfo.GroupContent,
+                : StlContentCache.GetStlWhereString(siteInfo.Id, listInfo.GroupContent,
                     listInfo.GroupContentNot, listInfo.Tags, listInfo.IsImageExists, listInfo.IsImage, listInfo.IsVideoExists, listInfo.IsVideo, listInfo.IsFileExists, listInfo.IsFile,
                     listInfo.IsTopExists, listInfo.IsTop, listInfo.IsRecommendExists, listInfo.IsRecommend, listInfo.IsHotExists, listInfo.IsHot, listInfo.IsColorExists, listInfo.IsColor,
                     listInfo.Where);
 
-            return Content.GetStlSqlStringChecked(tableName, siteInfo.Id, channelId, listInfo.StartNum, listInfo.TotalNum, listInfo.OrderByString, sqlWhereString, listInfo.Scope, listInfo.GroupChannel, listInfo.GroupChannelNot);
+            return StlContentCache.GetStlSqlStringChecked(tableName, siteInfo.Id, channelId, listInfo.StartNum, listInfo.TotalNum, listInfo.OrderByString, sqlWhereString, listInfo.Scope, listInfo.GroupChannel, listInfo.GroupChannelNot);
         }
 
-        public static string GetPageContentsSqlStringBySearch(string tableName, string groupContent, string groupContentNot, string tags, bool isImageExists, bool isImage, bool isVideoExists, bool isVideo, bool isFileExists, bool isFile, int startNum, int totalNum, string orderByString, bool isTopExists, bool isTop, bool isRecommendExists, bool isRecommend, bool isHotExists, bool isHot, bool isColorExists, bool isColor, string where)
+        public static string GetPageContentsSqlStringBySearch(string tableName, string groupContent, string groupContentNot, bool isImageExists, bool isImage, bool isVideoExists, bool isVideo, bool isFileExists, bool isFile, int startNum, int totalNum, string orderByString, bool isTopExists, bool isTop, bool isRecommendExists, bool isRecommend, bool isHotExists, bool isHot, bool isColorExists, bool isColor, string where)
         {
-            var sqlWhereString = Content.GetStlWhereStringBySearch(groupContent, groupContentNot, isImageExists, isImage, isVideoExists, isVideo, isFileExists, isFile, isTopExists, isTop, isRecommendExists, isRecommend, isHotExists, isHot, isColorExists, isColor, where);
-            var sqlString = Content.GetStlSqlStringCheckedBySearch(tableName, startNum, totalNum, orderByString, sqlWhereString);
+            var sqlWhereString = StlContentCache.GetStlWhereStringBySearch(groupContent, groupContentNot, isImageExists, isImage, isVideoExists, isVideo, isFileExists, isFile, isTopExists, isTop, isRecommendExists, isRecommend, isHotExists, isHot, isColorExists, isColor, where);
+            var sqlString = StlContentCache.GetStlSqlStringCheckedBySearch(tableName, startNum, totalNum, orderByString, sqlWhereString);
 
             return sqlString;
         }
 
-        public static DataSet GetContentsDataSource(SiteInfo siteInfo, int channelId, int contentId, string groupContent, string groupContentNot, string tags, bool isImageExists, bool isImage, bool isVideoExists, bool isVideo, bool isFileExists, bool isFile, bool isRelatedContents, int startNum, int totalNum, string orderByString, bool isTopExists, bool isTop, bool isRecommendExists, bool isRecommend, bool isHotExists, bool isHot, bool isColorExists, bool isColor, string where, EScopeType scopeType, string groupChannel, string groupChannelNot, LowerNameValueCollection others)
+        public static DataSet GetContentsDataSource(SiteInfo siteInfo, int channelId, int contentId, string groupContent, string groupContentNot, string tags, bool isImageExists, bool isImage, bool isVideoExists, bool isVideo, bool isFileExists, bool isFile, bool isRelatedContents, int startNum, int totalNum, string orderByString, bool isTopExists, bool isTop, bool isRecommendExists, bool isRecommend, bool isHotExists, bool isHot, bool isColorExists, bool isColor, string where, EScopeType scopeType, string groupChannel, string groupChannelNot, NameValueCollection others)
         {
             if (!ChannelManager.IsExists(siteInfo.Id, channelId)) return null;
 
@@ -331,10 +259,10 @@ namespace SiteServer.CMS.StlParser.Utility
             if (isRelatedContents && contentId > 0)
             {
                 var isTags = false;
-                var tagCollection = Content.GetValue(tableName, contentId, ContentAttribute.Tags);
+                var tagCollection = StlContentCache.GetValue(tableName, contentId, ContentAttribute.Tags);
                 if (!string.IsNullOrEmpty(tagCollection))
                 {
-                    var contentIdList = Tag.GetContentIdListByTagCollection(TranslateUtils.StringCollectionToStringCollection(tagCollection), siteInfo.Id);
+                    var contentIdList = StlTagCache.GetContentIdListByTagCollection(TranslateUtils.StringCollectionToStringList(tagCollection), siteInfo.Id);
                     if (contentIdList.Count > 0)
                     {
                         contentIdList.Remove(contentId);
@@ -342,12 +270,12 @@ namespace SiteServer.CMS.StlParser.Utility
                         if (string.IsNullOrEmpty(where))
                         {
                             where =
-                                $"ID IN ({TranslateUtils.ToSqlInStringWithoutQuote(contentIdList)})";
+                                $"ID IN ({TranslateUtils.ToSqlInStringWithoutQuote(contentIdList.ToList())})";
                         }
                         else
                         {
                             where +=
-                                $" AND (ID IN ({TranslateUtils.ToSqlInStringWithoutQuote(contentIdList)}))";
+                                $" AND (ID IN ({TranslateUtils.ToSqlInStringWithoutQuote(contentIdList.ToList())}))";
                         }
                     }
                 }
@@ -366,15 +294,37 @@ namespace SiteServer.CMS.StlParser.Utility
             }
 
             var sqlWhereString = PluginManager.IsExists(nodeInfo.ContentModelPluginId)
-                ? Content.GetStlWhereString(siteInfo.Id, groupContent, groupContentNot,
+                ? StlContentCache.GetStlWhereString(siteInfo.Id, groupContent, groupContentNot,
                     tags, isTopExists, isTop, where)
-                : Content.GetStlWhereString(siteInfo.Id, groupContent,
+                : StlContentCache.GetStlWhereString(siteInfo.Id, groupContent,
                     groupContentNot, tags, isImageExists, isImage, isVideoExists, isVideo, isFileExists, isFile,
                     isTopExists, isTop, isRecommendExists, isRecommend, isHotExists, isHot, isColorExists, isColor,
                     where);
 
             var channelIdList = ChannelManager.GetChannelIdList(nodeInfo, scopeType, groupChannel, groupChannelNot, string.Empty);
-            return Content.GetStlDataSourceChecked(channelIdList, tableName, startNum, totalNum, orderByString, sqlWhereString, others);
+            return StlContentCache.GetStlDataSourceChecked(channelIdList, tableName, startNum, totalNum, orderByString, sqlWhereString, others);
+        }
+
+        public static List<MinContentInfo> GetMinContentInfoList(SiteInfo siteInfo, int channelId, int contentId, string groupContent, string groupContentNot, string tags, bool isImageExists, bool isImage, bool isVideoExists, bool isVideo, bool isFileExists, bool isFile, bool isRelatedContents, int startNum, int totalNum, string orderByString, bool isTopExists, bool isTop, bool isRecommendExists, bool isRecommend, bool isHotExists, bool isHot, bool isColorExists, bool isColor, string where, EScopeType scopeType, string groupChannel, string groupChannelNot, NameValueCollection others)
+        {
+            var dataSource = GetContentsDataSource(siteInfo, channelId, contentId, groupContent, groupContentNot, tags,
+                isImageExists, isImage, isVideoExists, isVideo, isFileExists, isFile, isRelatedContents, startNum,
+                totalNum, orderByString, isTopExists, isTop, isRecommendExists, isRecommend, isHotExists, isHot,
+                isColorExists, isColor, where, scopeType, groupChannel, groupChannelNot, others);
+
+            var list = new List<MinContentInfo>();
+
+            foreach (DataRow dataItem in dataSource.Tables[0].Rows)
+            {
+                var minContentInfo = new MinContentInfo
+                {
+                    Id = (int) dataItem[ContentAttribute.Id],
+                    ChannelId = (int) dataItem[ContentAttribute.ChannelId]
+                };
+                list.Add(minContentInfo);
+            }
+
+            return list;
         }
 
         public static DataSet GetChannelsDataSource(int siteId, int channelId, string group, string groupNot, bool isImageExists, bool isImage, int startNum, int totalNum, string orderByString, EScopeType scopeType, bool isTotal, string where)
@@ -383,18 +333,18 @@ namespace SiteServer.CMS.StlParser.Utility
 
             if (isTotal)//从所有栏目中选择
             {
-                var sqlWhereString = Node.GetWhereString(siteId, group, groupNot, isImageExists, isImage, where);
-                ie = Node.GetStlDataSourceBySiteId(siteId, startNum, totalNum, sqlWhereString, orderByString);
+                var sqlWhereString = StlChannelCache.GetWhereString(siteId, group, groupNot, isImageExists, isImage, where);
+                ie = StlChannelCache.GetStlDataSourceBySiteId(siteId, startNum, totalNum, sqlWhereString, orderByString);
             }
             else
             {
                 var nodeInfo = ChannelManager.GetChannelInfo(siteId, channelId);
                 if (nodeInfo == null) return null;
 
-                var sqlWhereString = Node.GetWhereString(siteId, group, groupNot, isImageExists, isImage, where);
+                var sqlWhereString = StlChannelCache.GetWhereString(siteId, group, groupNot, isImageExists, isImage, where);
                 var channelIdList = ChannelManager.GetChannelIdList(nodeInfo, scopeType, string.Empty, string.Empty, string.Empty);
-                //ie = DataProvider.ChannelDao.GetStlDataSource(channelIdList, startNum, totalNum, sqlWhereString, orderByString);
-                ie = Node.GetStlDataSet(channelIdList, startNum, totalNum, sqlWhereString, orderByString);
+                //ie = DataProvider.Channel.GetStlDataSource(channelIdList, startNum, totalNum, sqlWhereString, orderByString);
+                ie = StlChannelCache.GetStlDataSet(channelIdList, startNum, totalNum, sqlWhereString, orderByString);
             }
 
             return ie;
@@ -406,66 +356,30 @@ namespace SiteServer.CMS.StlParser.Utility
 
             if (isTotal)//从所有栏目中选择
             {
-                var sqlWhereString = Node.GetWhereString(siteId, group, groupNot, isImageExists, isImage, where);
-                dataSet = DataProvider.ChannelDao.GetStlDataSetBySiteId(siteId, startNum, totalNum, sqlWhereString, orderByString);
+                var sqlWhereString = StlChannelCache.GetWhereString(siteId, group, groupNot, isImageExists, isImage, where);
+                dataSet = DataProvider.Channel.GetStlDataSetBySiteId(siteId, startNum, totalNum, sqlWhereString, orderByString);
             }
             else
             {
                 var nodeInfo = ChannelManager.GetChannelInfo(siteId, channelId);
                 if (nodeInfo == null) return null;
 
-                var sqlWhereString = Node.GetWhereString(siteId, group, groupNot, isImageExists, isImage, where);
+                var sqlWhereString = StlChannelCache.GetWhereString(siteId, group, groupNot, isImageExists, isImage, where);
                 var channelIdList = ChannelManager.GetChannelIdList(nodeInfo, scopeType, string.Empty, string.Empty, string.Empty);
-                dataSet = DataProvider.ChannelDao.GetStlDataSet(channelIdList, startNum, totalNum, sqlWhereString, orderByString);
+                dataSet = DataProvider.Channel.GetStlDataSet(channelIdList, startNum, totalNum, sqlWhereString, orderByString);
             }
             return dataSet;
         }
 
-        public static IDataReader GetSqlContentsDataSource(string connectionString, string queryString, int startNum, int totalNum, string orderByString)
+        public static DataSet GetSqlContentsDataSource(string connectionString, string queryString, int startNum, int totalNum, string orderByString)
         {
-            var sqlString = TableStructure.GetSelectSqlStringByQueryString(connectionString, queryString, startNum, totalNum, orderByString);
-            return DataProvider.DatabaseDao.GetDataSource(connectionString, sqlString);
+            var sqlString = StlSqlContentsCache.GetSelectSqlStringByQueryString(connectionString, queryString, startNum, totalNum, orderByString);
+            return StlDatabaseCache.GetDataSet(connectionString, sqlString);
         }
 
-        public static DataSet GetPageSqlContentsDataSet(string connectionString, string queryString, int startNum, int totalNum, string orderByString)
+        public static IDataReader GetSitesDataSource(string siteName, string siteDir, int startNum, int totalNum, string whereString, EScopeType scopeType, string orderByString)
         {
-            var sqlString = TableStructure.GetSelectSqlStringByQueryString(connectionString, queryString, startNum, totalNum, orderByString);
-            return DataProvider.DatabaseDao.GetDataSet(connectionString, sqlString);
-        }
-
-        public static IDataReader GetSitesDataSource(string siteName, string siteDir, int startNum, int totalNum, string whereString, EScopeType scopeType, string orderByString, string since)
-        {
-            return DataProvider.SiteDao.GetStlDataSource(siteName, siteDir, startNum, totalNum, whereString, scopeType, orderByString, since);
-        }
-
-        public static DataSet GetDataSourceByStlElement(SiteInfo siteInfo, int templateId, string elementName, string stlElement)
-        {
-            var xmlDocument = StlParserUtility.GetXmlDocument(stlElement, false);
-            XmlNode node = xmlDocument.DocumentElement;
-            if (node == null) return null;
-
-            node = node.FirstChild;
-
-            var templateInfo = TemplateManager.GetTemplateInfo(siteInfo.Id, templateId);
-            var pageInfo = new PageInfo(siteInfo.Id, 0, siteInfo, templateInfo, new Dictionary<string, object>());
-            var contextInfo = new ContextInfo(pageInfo);
-
-            if (node?.Name == null) return null;
-
-            if (elementName == StlChannels.ElementName)
-            {
-                var listInfo = ListInfo.GetListInfoByXmlNode(pageInfo, contextInfo, EContextType.Channel);
-
-                return StlChannels.GetDataSource(pageInfo, contextInfo, listInfo);
-            }
-            if (elementName == StlContents.ElementName)
-            {
-                var listInfo = ListInfo.GetListInfoByXmlNode(pageInfo, contextInfo, EContextType.Content);
-
-                return StlContents.GetDataSource(pageInfo, contextInfo, listInfo);
-            }
-
-            return null;
+            return DataProvider.Site.GetStlDataSource(siteName, siteDir, startNum, totalNum, whereString, scopeType, orderByString);
         }
     }
 }

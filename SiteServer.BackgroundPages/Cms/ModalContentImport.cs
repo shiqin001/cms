@@ -2,6 +2,7 @@
 using System.Collections.Specialized;
 using System.Web.UI.HtmlControls;
 using System.Web.UI.WebControls;
+using SiteServer.CMS.Caches;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
 using SiteServer.CMS.ImportExport;
@@ -37,8 +38,8 @@ namespace SiteServer.BackgroundPages.Cms
             if (IsPostBack) return;
 
             int checkedLevel;
-            var isChecked = CheckManager.GetUserCheckLevel(AuthRequest.AdminPermissions, SiteInfo, SiteId, out checkedLevel);
-            CheckManager.LoadContentLevelToEdit(DdlContentLevel, SiteInfo, _channelId, null, isChecked, checkedLevel);
+            var isChecked = CheckManager.GetUserCheckLevel(AuthRequest.AdminPermissionsImpl, SiteInfo, SiteId, out checkedLevel);
+            CheckManager.LoadContentLevelToEdit(DdlContentLevel, SiteInfo, null, isChecked, checkedLevel);
         }
 
         public override void Submit_OnClick(object sender, EventArgs e)
@@ -46,8 +47,8 @@ namespace SiteServer.BackgroundPages.Cms
             if (HifFile.PostedFile == null || "" == HifFile.PostedFile.FileName) return;
 
             var isChecked = false;
-            var checkedLevel = TranslateUtils.ToIntWithNagetive(DdlContentLevel.SelectedValue);
-            if (checkedLevel >= SiteInfo.Additional.CheckContentLevel)
+            var checkedLevel = TranslateUtils.ToIntWithNegative(DdlContentLevel.SelectedValue);
+            if (checkedLevel >= SiteInfo.CheckContentLevel)
             {
                 isChecked = true;
             }

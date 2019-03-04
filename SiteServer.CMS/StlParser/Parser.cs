@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Text;
-using SiteServer.CMS.Api.Sys.Stl;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
+using SiteServer.CMS.Core.RestRoutes.Sys.Stl;
 using SiteServer.CMS.Plugin;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Utility;
@@ -19,11 +19,24 @@ namespace SiteServer.CMS.StlParser
             {
                 try
                 {
-                    service.OnBeforeStlParse(new ParseEventArgs(pageInfo.SiteId, pageInfo.PageChannelId, pageInfo.PageContentId, pageInfo.TemplateInfo.TemplateType, pageInfo.TemplateInfo.Id, filePath, pageInfo.HeadCodes, pageInfo.BodyCodes, pageInfo.FootCodes, contentBuilder));
+                    service.OnBeforeStlParse(new ParseEventArgs
+                    (
+                        pageInfo.SiteId,
+                        pageInfo.PageChannelId,
+                        pageInfo.PageContentId,
+                        contextInfo.ContentInfo,
+                        pageInfo.TemplateInfo.Type,
+                        pageInfo.TemplateInfo.Id,
+                        filePath,
+                        pageInfo.HeadCodes,
+                        pageInfo.BodyCodes,
+                        pageInfo.FootCodes,
+                        contentBuilder
+                    ));
                 }
                 catch (Exception ex)
                 {
-                    LogUtils.AddErrorLog(service.PluginId, ex, nameof(service.OnBeforeStlParse));
+                    LogUtils.AddStlErrorLog(pageInfo, service.PluginId, nameof(service.OnBeforeStlParse), ex);
                 }
             }
 
@@ -36,11 +49,11 @@ namespace SiteServer.CMS.StlParser
             {
                 try
                 {
-                    service.OnAfterStlParse(new ParseEventArgs(pageInfo.SiteId, pageInfo.PageChannelId, pageInfo.PageContentId, pageInfo.TemplateInfo.TemplateType, pageInfo.TemplateInfo.Id, filePath, pageInfo.HeadCodes, pageInfo.BodyCodes, pageInfo.FootCodes, contentBuilder));
+                    service.OnAfterStlParse(new ParseEventArgs(pageInfo.SiteId, pageInfo.PageChannelId, pageInfo.PageContentId, contextInfo.ContentInfo, pageInfo.TemplateInfo.Type, pageInfo.TemplateInfo.Id, filePath, pageInfo.HeadCodes, pageInfo.BodyCodes, pageInfo.FootCodes, contentBuilder));
                 }
                 catch (Exception ex)
                 {
-                    LogUtils.AddErrorLog(service.PluginId, ex, nameof(service.OnAfterStlParse));
+                    LogUtils.AddStlErrorLog(pageInfo, service.PluginId, nameof(service.OnAfterStlParse), ex);
                 }
             }
 
@@ -54,7 +67,7 @@ namespace SiteServer.CMS.StlParser
                     StringUtils.InsertAfter(new[] { "<head>", "<HEAD>" }, contentBuilder, templateString);
                 }
 
-                if (pageInfo.SiteInfo.Additional.IsCreateBrowserNoCache)
+                if (pageInfo.SiteInfo.IsCreateBrowserNoCache)
                 {
                     const string templateString = @"
 <META HTTP-EQUIV=""Pragma"" CONTENT=""no-cache"">
@@ -62,37 +75,28 @@ namespace SiteServer.CMS.StlParser
                     StringUtils.InsertAfter(new[] { "<head>", "<HEAD>" }, contentBuilder, templateString);
                 }
 
-                if (pageInfo.SiteInfo.Additional.IsCreateIe8Compatible)
+                if (pageInfo.SiteInfo.IsCreateIe8Compatible)
                 {
                     const string templateString = @"
 <META HTTP-EQUIV=""x-ua-compatible"" CONTENT=""ie=7"" />";
                     StringUtils.InsertAfter(new[] { "<head>", "<HEAD>" }, contentBuilder, templateString);
                 }
 
-                if (pageInfo.SiteInfo.Additional.IsCreateJsIgnoreError)
+                if (pageInfo.SiteInfo.IsCreateJsIgnoreError)
                 {
                     const string templateString = @"
 <script type=""text/javascript"">window.onerror=function(){return true;}</script>";
                     StringUtils.InsertAfter(new[] { "<head>", "<HEAD>" }, contentBuilder, templateString);
                 }
 
-                if (pageInfo.PageContentId > 0 && pageInfo.SiteInfo.Additional.IsCountHits && !pageInfo.BodyCodes.ContainsKey(PageInfo.Const.JsAdStlCountHits))
-                {
-                    if (!pageInfo.FootCodes.ContainsKey(PageInfo.Const.JsAdStlCountHits))
-                    {
-                        pageInfo.FootCodes.Add(PageInfo.Const.JsAdStlCountHits, $@"
-<script src=""{ApiRouteActionsAddContentHits.GetUrl(pageInfo.ApiUrl, pageInfo.SiteId, pageInfo.PageChannelId, pageInfo.PageContentId)}"" type=""text/javascript""></script>");
-                    }
-                }
-
-                var isShowPageInfo = pageInfo.SiteInfo.Additional.IsCreateShowPageInfo;
+                var isShowPageInfo = pageInfo.SiteInfo.IsCreateShowPageInfo;
 
                 if (!pageInfo.IsLocal)
                 {
-                    if (pageInfo.SiteInfo.Additional.IsCreateDoubleClick)
+                    if (pageInfo.SiteInfo.IsCreateDoubleClick)
                     {
                         var fileTemplateId = 0;
-                        if (pageInfo.TemplateInfo.TemplateType == TemplateType.FileTemplate)
+                        if (pageInfo.TemplateInfo.Type == TemplateType.FileTemplate)
                         {
                             fileTemplateId = pageInfo.TemplateInfo.Id;
                         }
@@ -115,7 +119,7 @@ namespace SiteServer.CMS.StlParser
                 if (isShowPageInfo)
                 {
                     contentBuilder.Append($@"
-<!-- {pageInfo.TemplateInfo.RelatedFileName}({TemplateTypeUtils.GetText(pageInfo.TemplateInfo.TemplateType)}) -->");
+<!-- {pageInfo.TemplateInfo.RelatedFileName}({TemplateTypeUtils.GetText(pageInfo.TemplateInfo.Type)}) -->");
                 }
 
                 var headCodesHtml = pageInfo.HeadCodesHtml;

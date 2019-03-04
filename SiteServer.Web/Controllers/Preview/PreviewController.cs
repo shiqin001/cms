@@ -5,11 +5,12 @@ using System.Net.Http;
 using System.Text;
 using System.Web;
 using System.Web.Http;
-using SiteServer.CMS.Api.Preview;
+using SiteServer.CMS.Caches;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
+using SiteServer.CMS.Core.RestRoutes.Preview;
+using SiteServer.CMS.Database.Attributes;
+using SiteServer.CMS.Database.Models;
 using SiteServer.CMS.StlParser;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.StlElement;
@@ -18,7 +19,6 @@ using SiteServer.Plugin;
 
 namespace SiteServer.API.Controllers.Preview
 {
-    [RoutePrefix("api")]
     public class PreviewController : ApiController
     {
         [HttpGet, Route(ApiRoutePreview.Route)]
@@ -100,7 +100,7 @@ namespace SiteServer.API.Controllers.Preview
             {
                 Content =
                     new StringContent(html,
-                        Encoding.GetEncoding(siteInfo.Additional.Charset), "text/html")
+                        Encoding.GetEncoding(siteInfo.Charset), "text/html")
 
             };
         }
@@ -124,13 +124,12 @@ namespace SiteServer.API.Controllers.Preview
             var contentBuilder = new StringBuilder(TemplateManager.GetTemplateContent(siteInfo, templateInfo));
             //需要完善，考虑单页模板、内容正文、翻页及外部链接
 
-            if (templateInfo.TemplateType == TemplateType.FileTemplate)           //单页
+            if (templateInfo.Type == TemplateType.FileTemplate)           //单页
             {
-                var fileContentBuilder = new StringBuilder(TemplateManager.GetTemplateContent(siteInfo, templateInfo));
                 Parser.Parse(pageInfo, contextInfo, contentBuilder, visualInfo.FilePath, true);
-                return Response(fileContentBuilder.ToString(), siteInfo);
+                return Response(contentBuilder.ToString(), siteInfo);
             }
-            if (templateInfo.TemplateType == TemplateType.IndexPageTemplate || templateInfo.TemplateType == TemplateType.ChannelTemplate)        //栏目页面
+            if (templateInfo.Type == TemplateType.IndexPageTemplate || templateInfo.Type == TemplateType.ChannelTemplate)        //栏目页面
             {
                 var nodeInfo = ChannelManager.GetChannelInfo(siteInfo.Id, visualInfo.ChannelId);
                 if (nodeInfo == null) return null;
@@ -200,9 +199,8 @@ namespace SiteServer.API.Controllers.Preview
                     var stlElement = StlParserUtility.GetStlElement(StlPageContents.ElementName, stlLabelList);
                     var stlElementTranslated = StlParserManager.StlEncrypt(stlElement);
 
-                    var pageContentsElementParser = new StlPageContents(stlElement, pageInfo, contextInfo, false);
-                    int totalNum;
-                    var pageCount = pageContentsElementParser.GetPageCount(out totalNum);
+                    var pageContentsElementParser = new StlPageContents(stlElement, pageInfo, contextInfo);
+                    var pageCount = pageContentsElementParser.GetPageCount(out var totalNum);
 
                     Parser.Parse(pageInfo, contextInfo, contentBuilder, visualInfo.FilePath, true);
 
@@ -227,9 +225,8 @@ namespace SiteServer.API.Controllers.Preview
                     var stlElement = StlParserUtility.GetStlElement(StlPageChannels.ElementName, stlLabelList);
                     var stlElementTranslated = StlParserManager.StlEncrypt(stlElement);
 
-                    var pageChannelsElementParser = new StlPageChannels(stlElement, pageInfo, contextInfo, false);
-                    int totalNum;
-                    var pageCount = pageChannelsElementParser.GetPageCount(out totalNum);
+                    var pageChannelsElementParser = new StlPageChannels(stlElement, pageInfo, contextInfo);
+                    var pageCount = pageChannelsElementParser.GetPageCount(out var totalNum);
 
                     Parser.Parse(pageInfo, contextInfo, contentBuilder, visualInfo.FilePath, true);
 
@@ -254,9 +251,8 @@ namespace SiteServer.API.Controllers.Preview
                     var stlElement = StlParserUtility.GetStlElement(StlPageSqlContents.ElementName, stlLabelList);
                     var stlElementTranslated = StlParserManager.StlEncrypt(stlElement);
 
-                    var pageSqlContentsElementParser = new StlPageSqlContents(stlElement, pageInfo, contextInfo, false);
-                    int totalNum;
-                    var pageCount = pageSqlContentsElementParser.GetPageCount(out totalNum);
+                    var pageSqlContentsElementParser = new StlPageSqlContents(stlElement, pageInfo, contextInfo);
+                    var pageCount = pageSqlContentsElementParser.GetPageCount(out var totalNum);
 
                     Parser.Parse(pageInfo, contextInfo, contentBuilder, visualInfo.FilePath, true);
 
@@ -267,7 +263,7 @@ namespace SiteServer.API.Controllers.Preview
                             var thePageInfo = pageInfo.Clone();
                             thePageInfo.IsLocal = true;
 
-                            var pageHtml = pageSqlContentsElementParser.Parse(currentPageIndex, pageCount);
+                            var pageHtml = pageSqlContentsElementParser.Parse(totalNum, currentPageIndex, pageCount, false);
                             var pagedBuilder = new StringBuilder(contentBuilder.ToString().Replace(stlElementTranslated, pageHtml));
 
                             StlParserManager.ReplacePageElementsInChannelPage(pagedBuilder, thePageInfo, stlLabelList, thePageInfo.PageChannelId, currentPageIndex, pageCount, totalNum);
@@ -280,13 +276,14 @@ namespace SiteServer.API.Controllers.Preview
                 Parser.Parse(pageInfo, contextInfo, contentBuilder, visualInfo.FilePath, true);
                 return Response(contentBuilder.ToString(), siteInfo);
             }
-            if (templateInfo.TemplateType == TemplateType.ContentTemplate)        //内容页面
+            if (templateInfo.Type == TemplateType.ContentTemplate)        //内容页面
             {
                 if (contextInfo.ContentInfo == null) return null;
 
-                if (!string.IsNullOrEmpty(contextInfo.ContentInfo.GetString(ContentAttribute.LinkUrl)))
+                var linkUrl = contextInfo.ContentInfo.Get<string>(ContentAttribute.LinkUrl);
+                if (!string.IsNullOrEmpty(linkUrl))
                 {
-                    PageUtils.Redirect(contextInfo.ContentInfo.GetString(ContentAttribute.LinkUrl));
+                    PageUtils.Redirect(linkUrl);
                     return null;
                 }
 
@@ -335,9 +332,8 @@ namespace SiteServer.API.Controllers.Preview
                     var stlElement = StlParserUtility.GetStlElement(StlPageContents.ElementName, stlLabelList);
                     var stlElementTranslated = StlParserManager.StlEncrypt(stlElement);
 
-                    var pageContentsElementParser = new StlPageContents(stlElement, pageInfo, contextInfo, false);
-                    int totalNum;
-                    var pageCount = pageContentsElementParser.GetPageCount(out totalNum);
+                    var pageContentsElementParser = new StlPageContents(stlElement, pageInfo, contextInfo);
+                    var pageCount = pageContentsElementParser.GetPageCount(out var totalNum);
 
                     Parser.Parse(pageInfo, contextInfo, contentBuilder, visualInfo.FilePath, true);
 
@@ -362,9 +358,8 @@ namespace SiteServer.API.Controllers.Preview
                     var stlElement = StlParserUtility.GetStlElement(StlPageChannels.ElementName, stlLabelList);
                     var stlElementTranslated = StlParserManager.StlEncrypt(stlElement);
 
-                    var pageChannelsElementParser = new StlPageChannels(stlElement, pageInfo, contextInfo, false);
-                    int totalNum;
-                    var pageCount = pageChannelsElementParser.GetPageCount(out totalNum);
+                    var pageChannelsElementParser = new StlPageChannels(stlElement, pageInfo, contextInfo);
+                    var pageCount = pageChannelsElementParser.GetPageCount(out _);
 
                     Parser.Parse(pageInfo, contextInfo, contentBuilder, visualInfo.FilePath, true);
 
@@ -389,9 +384,8 @@ namespace SiteServer.API.Controllers.Preview
                     var stlElement = StlParserUtility.GetStlElement(StlPageSqlContents.ElementName, stlLabelList);
                     var stlElementTranslated = StlParserManager.StlEncrypt(stlElement);
 
-                    var pageSqlContentsElementParser = new StlPageSqlContents(stlElement, pageInfo, contextInfo, false);
-                    int totalNum;
-                    var pageCount = pageSqlContentsElementParser.GetPageCount(out totalNum);
+                    var pageSqlContentsElementParser = new StlPageSqlContents(stlElement, pageInfo, contextInfo);
+                    var pageCount = pageSqlContentsElementParser.GetPageCount(out var totalNum);
 
                     Parser.Parse(pageInfo, contextInfo, contentBuilder, visualInfo.FilePath, true);
 
@@ -402,7 +396,7 @@ namespace SiteServer.API.Controllers.Preview
                             var thePageInfo = pageInfo.Clone();
                             thePageInfo.IsLocal = true;
 
-                            var pageHtml = pageSqlContentsElementParser.Parse(currentPageIndex, pageCount);
+                            var pageHtml = pageSqlContentsElementParser.Parse(totalNum, currentPageIndex, pageCount, false);
                             var pagedBuilder = new StringBuilder(contentBuilder.ToString().Replace(stlElementTranslated, pageHtml));
 
                             StlParserManager.ReplacePageElementsInContentPage(pagedBuilder, thePageInfo, stlLabelList, visualInfo.ChannelId, visualInfo.ContentId, currentPageIndex, pageCount);

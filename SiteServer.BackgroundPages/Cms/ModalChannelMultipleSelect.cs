@@ -4,9 +4,9 @@ using System.Collections.Specialized;
 using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.BackgroundPages.Core;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Enumerations;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Core.Enumerations;
+using SiteServer.CMS.Database.Models;
 using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.BackgroundPages.Cms
@@ -66,7 +66,7 @@ namespace SiteServer.BackgroundPages.Cms
 
             PhSiteId.Visible = _isSiteSelect;
 
-            var siteIdList = AuthRequest.AdminPermissions.SiteIdList;
+            var siteIdList = AuthRequest.AdminPermissionsImpl.GetSiteIdList();
 
             var mySystemInfoArrayList = new ArrayList();
             var parentWithChildren = new Hashtable();
@@ -121,7 +121,7 @@ namespace SiteServer.BackgroundPages.Cms
                 {
                     ["linkUrl"] = GetRedirectUrl(_targetSiteId, string.Empty)
                 };
-                ClientScriptRegisterClientScriptBlock("NodeTreeScript", ChannelLoading.GetScript(SiteManager.GetSiteInfo(_targetSiteId), string.Empty, ELoadingType.ChannelSelect, additional));
+                ClientScriptRegisterClientScriptBlock("NodeTreeScript", ChannelLoading.GetScript(SiteManager.GetSiteInfo(_targetSiteId), string.Empty, ELoadingType.ChannelClickSelect, additional));
 
                 var channelIdList = ChannelManager.GetChannelIdList(nodeInfo, EScopeType.Children, string.Empty, string.Empty, string.Empty);
 
@@ -139,7 +139,7 @@ namespace SiteServer.BackgroundPages.Cms
             {
                 if (!IsDescendantOwningChannelId(channelId)) e.Item.Visible = false;
             }
-            var nodeInfo = ChannelManager.GetChannelInfo(_targetSiteId, channelId);
+            var channelInfo = ChannelManager.GetChannelInfo(_targetSiteId, channelId);
 
             var ltlHtml = (Literal)e.Item.FindControl("ltlHtml");
 
@@ -148,7 +148,7 @@ namespace SiteServer.BackgroundPages.Cms
                 ["linkUrl"] = GetRedirectUrl(_targetSiteId, string.Empty)
             };
 
-            ltlHtml.Text = ChannelLoading.GetChannelRowHtml(SiteInfo, nodeInfo, enabled, ELoadingType.ChannelSelect, additional, AuthRequest.AdminPermissions);
+            ltlHtml.Text = ChannelLoading.GetChannelRowHtml(SiteInfo, channelInfo, enabled, ELoadingType.ChannelClickSelect, additional, AuthRequest.AdminPermissionsImpl);
         }
 
         public void DdlSiteId_OnSelectedIndexChanged(object sender, EventArgs e)

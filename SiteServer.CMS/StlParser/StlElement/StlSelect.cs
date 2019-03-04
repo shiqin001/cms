@@ -1,8 +1,10 @@
 ﻿using System.Web.UI.HtmlControls;
 using System.Web.UI.WebControls;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Core.Enumerations;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Parsers;
 using SiteServer.CMS.StlParser.Utility;
@@ -10,34 +12,77 @@ using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "下拉列表", Description = "通过 stl:select 标签在模板中显示栏目或内容下拉列表")]
+    [StlElement(Title = "下拉列表", Description = "通过 stl:select 标签在模板中显示栏目或内容下拉列表")]
     public class StlSelect
     {
         private StlSelect() { }
         public const string ElementName = "stl:select";
 
-        private static readonly Attr IsChannel = new Attr("isChannel", "是否显示栏目下拉列表");
-        private static readonly Attr ChannelIndex = new Attr("channelIndex", "栏目索引");
-        private static readonly Attr ChannelName = new Attr("channelName", "栏目名称");
-        private static readonly Attr UpLevel = new Attr("upLevel", "上级栏目的级别");
-        private static readonly Attr TopLevel = new Attr("topLevel", "从首页向下的栏目级别");
-        private static readonly Attr Scope = new Attr("scope", "选择的范围");
-        private static readonly Attr GroupChannel = new Attr("groupChannel", "指定显示的栏目组");
-        private static readonly Attr GroupChannelNot = new Attr("groupChannelNot", "指定不显示的栏目组");
-        private static readonly Attr GroupContent = new Attr("groupContent", "指定显示的内容组");
-        private static readonly Attr GroupContentNot = new Attr("groupContentNot", "指定不显示的内容组");
-        private static readonly Attr Tags = new Attr("tags", "指定标签");
-        private static readonly Attr Order = new Attr("order", "排序");
-        private static readonly Attr TotalNum = new Attr("totalNum", "显示数目");
-        private static readonly Attr TitleWordNum = new Attr("titleWordNum", "标题文字数量");
-        private static readonly Attr Where = new Attr("where", "获取下拉列表的条件判断");
-        private static readonly Attr QueryString = new Attr("queryString", "链接参数");
-        private static readonly Attr IsTop = new Attr("isTop", "仅显示置顶内容");
-        private static readonly Attr IsRecommend = new Attr("isRecommend", "仅显示推荐内容");
-        private static readonly Attr IsHot = new Attr("isHot", "仅显示热点内容");
-        private static readonly Attr IsColor = new Attr("isColor", "仅显示醒目内容");
-        private static readonly Attr Title = new Attr("title", "下拉列表提示标题");
-        private static readonly Attr OpenWin = new Attr("openWin", "选择是否新窗口打开链接");
+        [StlAttribute(Title = "是否显示栏目下拉列表")]
+        private const string IsChannel = nameof(IsChannel);
+
+        [StlAttribute(Title = "栏目索引")]
+        private const string ChannelIndex = nameof(ChannelIndex);
+
+        [StlAttribute(Title = "栏目名称")]
+        private const string ChannelName = nameof(ChannelName);
+
+        [StlAttribute(Title = "上级栏目的级别")]
+        private const string UpLevel = nameof(UpLevel);
+
+        [StlAttribute(Title = "从首页向下的栏目级别")]
+        private const string TopLevel = nameof(TopLevel);
+
+        [StlAttribute(Title = "选择的范围")]
+        private const string Scope = nameof(Scope);
+
+        [StlAttribute(Title = "指定显示的栏目组")]
+        private const string GroupChannel = nameof(GroupChannel);
+
+        [StlAttribute(Title = "指定不显示的栏目组")]
+        private const string GroupChannelNot = nameof(GroupChannelNot);
+
+        [StlAttribute(Title = "指定显示的内容组")]
+        private const string GroupContent = nameof(GroupContent);
+
+        [StlAttribute(Title = "指定不显示的内容组")]
+        private const string GroupContentNot = nameof(GroupContentNot);
+
+        [StlAttribute(Title = "指定标签")]
+        private const string Tags = nameof(Tags);
+
+        [StlAttribute(Title = "排序")]
+        private const string Order = nameof(Order);
+
+        [StlAttribute(Title = "显示数目")]
+        private const string TotalNum = nameof(TotalNum);
+
+        [StlAttribute(Title = "标题文字数量")]
+        private const string TitleWordNum = nameof(TitleWordNum);
+
+        [StlAttribute(Title = "获取下拉列表的条件判断")]
+        private const string Where = nameof(Where);
+
+        [StlAttribute(Title = "链接参数")]
+        private const string QueryString = nameof(QueryString);
+
+        [StlAttribute(Title = "仅显示置顶内容")]
+        private const string IsTop = nameof(IsTop);
+
+        [StlAttribute(Title = "仅显示推荐内容")]
+        private const string IsRecommend = nameof(IsRecommend);
+
+        [StlAttribute(Title = "仅显示热点内容")]
+        private const string IsHot = nameof(IsHot);
+
+        [StlAttribute(Title = "仅显示醒目内容")]
+        private const string IsColor = nameof(IsColor);
+
+        [StlAttribute(Title = "下拉列表提示标题")]
+        private const string Title = nameof(Title);
+
+        [StlAttribute(Title = "选择是否新窗口打开链接")]
+        private const string OpenWin = nameof(OpenWin);
 
         public static string Parse(PageInfo pageInfo, ContextInfo contextInfo)
         {
@@ -72,99 +117,99 @@ namespace SiteServer.CMS.StlParser.StlElement
             var displayTitle = string.Empty;
             var openWin = true;
 
-            foreach (var name in contextInfo.Attributes.Keys)
+            foreach (var name in contextInfo.Attributes.AllKeys)
             {
                 var value = contextInfo.Attributes[name];
 
-                if (StringUtils.EqualsIgnoreCase(name, IsChannel.Name))
+                if (StringUtils.EqualsIgnoreCase(name, IsChannel))
                 {
                     isChannel = TranslateUtils.ToBool(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, ChannelIndex.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, ChannelIndex))
                 {
                     channelIndex = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, ChannelName.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, ChannelName))
                 {
                     channelName = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, UpLevel.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, UpLevel))
                 {
                     upLevel = TranslateUtils.ToInt(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, TopLevel.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, TopLevel))
                 {
                     topLevel = TranslateUtils.ToInt(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Scope.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Scope))
                 {
                     scopeTypeString = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, GroupChannel.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, GroupChannel))
                 {
                     groupChannel = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, GroupChannelNot.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, GroupChannelNot))
                 {
                     groupChannelNot = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, GroupContent.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, GroupContent))
                 {
                     groupContent = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, GroupContentNot.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, GroupContentNot))
                 {
                     groupContentNot = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Tags.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Tags))
                 {
                     tags = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Order.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Order))
                 {
                     order = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, TotalNum.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, TotalNum))
                 {
                     totalNum = TranslateUtils.ToInt(value, totalNum);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Where.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Where))
                 {
                     where = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, QueryString.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, QueryString))
                 {
                     queryString = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsTop.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, IsTop))
                 {
                     isTopExists = true;
                     isTop = TranslateUtils.ToBool(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsRecommend.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, IsRecommend))
                 {
                     isRecommendExists = true;
                     isRecommend = TranslateUtils.ToBool(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsHot.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, IsHot))
                 {
                     isHotExists = true;
                     isHot = TranslateUtils.ToBool(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsColor.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, IsColor))
                 {
                     isColorExists = true;
                     isColor = TranslateUtils.ToBool(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, TitleWordNum.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, TitleWordNum))
                 {
                     titleWordNum = TranslateUtils.ToInt(value, titleWordNum);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Title.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Title))
                 {
                     displayTitle = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, OpenWin.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, OpenWin))
                 {
                     openWin = TranslateUtils.ToBool(value);
                 }
@@ -189,7 +234,9 @@ namespace SiteServer.CMS.StlParser.StlElement
                 scopeType = isChannel ? EScopeType.Children : EScopeType.Self;
             }
 
-            var orderByString = isChannel ? StlDataUtility.GetChannelOrderByString(pageInfo.SiteId, order, ETaxisType.OrderByTaxis) : StlDataUtility.GetContentOrderByString(pageInfo.SiteId, order, ETaxisType.OrderByTaxisDesc);
+            var orderByString = isChannel
+                ? StlDataUtility.GetChannelOrderByString(order, ETaxisType.OrderByTaxis)
+                : StlDataUtility.GetContentOrderByString(order, ETaxisType.OrderByTaxisDesc);
 
             var channelId = StlDataUtility.GetChannelIdByLevel(pageInfo.SiteId, contextInfo.ChannelId, upLevel, topLevel);
 
@@ -204,7 +251,7 @@ namespace SiteServer.CMS.StlParser.StlElement
             if (openWin)
             {
                 scriptHtml = $@"
-<script language=""JavaScript"" type=""text/JavaScript"">
+<script language=""javascript"" type=""text/javascript"">
 <!--
 function {uniqueId}_jumpMenu(targ,selObj)
 {"{"} //v3.0
@@ -223,7 +270,7 @@ selObj.selectedIndex=0;
             }
             if (!string.IsNullOrEmpty(displayTitle))
             {
-                var listitem = new ListItem(displayTitle, PageUtils.UnclickedUrl) {Selected = true};
+                var listitem = new ListItem(displayTitle, PageUtils.UnClickedUrl) {Selected = true};
                 selectControl.Items.Add(listitem);
             }
 
@@ -253,24 +300,20 @@ selObj.selectedIndex=0;
             }
             else
             {
-                var dataSource = StlDataUtility.GetContentsDataSource(pageInfo.SiteInfo, channelId, contextInfo.ContentId, groupContent, groupContentNot, tags, false, false, false, false, false, false, false, 1, totalNum, orderByString, isTopExists, isTop, isRecommendExists, isRecommend, isHotExists, isHot, isColorExists, isColor, where, scopeType, groupChannel, groupChannelNot, null);
+                var minContentInfoList = StlDataUtility.GetMinContentInfoList(pageInfo.SiteInfo, channelId, contextInfo.ContentId, groupContent, groupContentNot, tags, false, false, false, false, false, false, false, 1, totalNum, orderByString, isTopExists, isTop, isRecommendExists, isRecommend, isHotExists, isHot, isColorExists, isColor, where, scopeType, groupChannel, groupChannelNot, null);
 
-                if (dataSource != null)
+                if (minContentInfoList != null)
                 {
-                    foreach (var dataItem in dataSource.Tables[0].Rows)
+                    foreach (var minContentInfo in minContentInfoList)
                     {
-                        var contentInfo = new ContentInfo(dataItem);
-                        if (contentInfo != null)
+                        var contentInfo = ContentManager.GetContentInfo(pageInfo.SiteInfo, minContentInfo.ChannelId, minContentInfo.Id);
+                        var title = StringUtils.MaxLengthText(contentInfo.Title, titleWordNum);
+                        var url = PageUtility.GetContentUrl(pageInfo.SiteInfo, contentInfo, false);
+                        if (!string.IsNullOrEmpty(queryString))
                         {
-                            var title = StringUtils.MaxLengthText(contentInfo.Title, titleWordNum);
-                            var url = PageUtility.GetContentUrl(pageInfo.SiteInfo, contentInfo, pageInfo.IsLocal);
-                            if (!string.IsNullOrEmpty(queryString))
-                            {
-                                url = PageUtils.AddQueryString(url, queryString);
-                            }
-                            var listitem = new ListItem(title, url);
-                            selectControl.Items.Add(listitem);
+                            url = PageUtils.AddQueryString(url, queryString);
                         }
+                        selectControl.Items.Add(new ListItem(title, url));
                     }
                     //foreach (var dataItem in dataSource)
                     //{

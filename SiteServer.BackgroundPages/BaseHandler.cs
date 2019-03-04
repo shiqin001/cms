@@ -1,16 +1,20 @@
 ﻿using System.Web;
 using SiteServer.Utils;
-using SiteServer.CMS.Plugin;
+using SiteServer.CMS.Plugin.Impl;
 
 namespace SiteServer.BackgroundPages
 {
     public abstract class BaseHandler : IHttpHandler
     {
-        protected AuthRequest AuthRequest { get; private set; }
+#pragma warning disable CS0612 // '“RequestImpl”已过时
+        protected RequestImpl AuthRequest { get; private set; }
+#pragma warning restore CS0612 // '“RequestImpl”已过时
 
         public void ProcessRequest(HttpContext context)
         {
-            AuthRequest = new AuthRequest(context.Request);
+#pragma warning disable CS0612 // '“RequestImpl”已过时
+            AuthRequest = new RequestImpl(context.Request);
+#pragma warning restore CS0612 // '“RequestImpl”已过时
 
             if (!AuthRequest.IsAdminLoggin) return;
 

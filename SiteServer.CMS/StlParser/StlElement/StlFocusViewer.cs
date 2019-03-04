@@ -1,11 +1,12 @@
-﻿using System.Collections.Generic;
-using System.Collections.Specialized;
+﻿using System.Collections.Specialized;
 using System.Text;
 using System.Web.UI.HtmlControls;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
+using SiteServer.CMS.Core.Enumerations;
+using SiteServer.CMS.Database.Attributes;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Parsers;
 using SiteServer.CMS.StlParser.Utility;
@@ -13,47 +14,42 @@ using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "滚动焦点图", Description = "通过 stl:focusviewer 标签在模板中实现由 FLASH 显示的图片轮播效果", Obsolete = true)]
-    public static class StlFocusViewer
+    [StlElement(Title = "滚动焦点图")]
+    public class StlFocusViewer
     {
+        private StlFocusViewer() { }
         public const string ElementName = "stl:focusViewer";
 
-        private static readonly Attr ChannelIndex = new Attr("channelIndex", "栏目索引");
-        private static readonly Attr ChannelName = new Attr("channelName", "栏目名称");
-        private static readonly Attr Scope = new Attr("scope", "范围");
-        private static readonly Attr GroupChannel = new Attr("groupChannel", "指定显示的内容组");
-        private static readonly Attr GroupChannelNot = new Attr("groupChannelNot", "指定不显示的内容组");
-        private static readonly Attr GroupContent = new Attr("groupContent", "指定显示的内容组");
-        private static readonly Attr GroupContentNot = new Attr("groupContentNot", "指定不显示的内容组");
-        private static readonly Attr Tags = new Attr("tags", "指定标签");
-        private static readonly Attr Order = new Attr("order", "排序");
-        private static readonly Attr StartNum = new Attr("startNum", "从第几条信息开始显示");
-        private static readonly Attr TotalNum = new Attr("totalNum", "标题文字数量");
-        private static readonly Attr TitleWordNum = new Attr("titleWordNum", "标题文字数量");
-        private static readonly Attr Where = new Attr("where", "获取滚动焦点图的条件判断");
-        private static readonly Attr IsTop = new Attr("isTop", "仅显示置顶内容");
-        private static readonly Attr IsRecommend = new Attr("isRecommend", "仅显示推荐内容");
-        private static readonly Attr IsHot = new Attr("isHot", "仅显示热点内容");
-        private static readonly Attr IsColor = new Attr("isColor", "仅显示醒目内容");
-        private static readonly Attr Theme = new Attr("theme", "主题样式");
-        private static readonly Attr Width = new Attr("width", "图片宽度");
-        private static readonly Attr Height = new Attr("height", "图片高度");
-        private static readonly Attr BgColor = new Attr("bgColor", "背景色");
-        private static readonly Attr IsShowText = new Attr("isShowText", "是否显示文字标题");
-        private static readonly Attr IsTopText = new Attr("isTopText", "是否文字显示在顶端");
+        public const string AttributeChannelIndex = "channelIndex";
+        public const string AttributeChannelName = "channelName";
+        public const string AttributeScope = "scope";
+        public const string AttributeGroup = "group";
+        public const string AttributeGroupNot = "groupNot";
+        public const string AttributeGroupChannel = "groupChannel";
+        public const string AttributeGroupChannelNot = "groupChannelNot";
+        public const string AttributeGroupContent = "groupContent";
+        public const string AttributeGroupContentNot = "groupContentNot";
+        public const string AttributeTags = "tags";
+        public const string AttributeOrder = "order";
+        public const string AttributeStartNum = "startNum";
+        public const string AttributeTotalNum = "totalNum";
+        public const string AttributeTitleWordNum = "titleWordNum";
+        public const string AttributeWhere = "where";
+        public const string AttributeIsTop = "isTop";
+        public const string AttributeIsRecommend = "isRecommend";
+        public const string AttributeIsHot = "isHot";
+        public const string AttributeIsColor = "isColor";
+        public const string AttributeTheme = "theme";
+        public const string AttributeWidth = "width";
+        public const string AttributeHeight = "height";
+        public const string AttributeBgColor = "bgColor";
+        public const string AttributeIsShowText = "isShowText";
+        public const string AttributeIsTopText = "isTopText";
 
         public const string ThemeStyle1 = "Style1";
         public const string ThemeStyle2 = "Style2";
         public const string ThemeStyle3 = "Style3";
         public const string ThemeStyle4 = "Style4";
-
-        public static SortedList<string, string> ThemeList => new SortedList<string, string>
-        {
-            {ThemeStyle1, "样式1"},
-            {ThemeStyle2, "样式2"},
-            {ThemeStyle3, "样式3"},
-            {ThemeStyle4, "样式4"},
-        };
 
         //对“flash滚动焦点图”（stl:focusViewer）元素进行解析
         public static string Parse(PageInfo pageInfo, ContextInfo contextInfo)
@@ -96,87 +92,87 @@ namespace SiteServer.CMS.StlParser.StlElement
             var bgColor = string.Empty;
             var genericControl = new HtmlGenericControl("div");
 
-            foreach (var name in contextInfo.Attributes.Keys)
+            foreach (var name in contextInfo.Attributes.AllKeys)
             {
                 var value = contextInfo.Attributes[name];
 
-                if (StringUtils.EqualsIgnoreCase(name, ChannelIndex.Name))
+                if (StringUtils.EqualsIgnoreCase(name, AttributeChannelIndex))
                 {
                     channelIndex = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, ChannelName.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeChannelName))
                 {
                     channelName = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Scope.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeScope))
                 {
                     scopeType = EScopeTypeUtils.GetEnumType(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, GroupChannel.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeGroupChannel))
                 {
                     groupChannel = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, GroupChannelNot.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeGroupChannelNot))
                 {
                     groupChannelNot = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, GroupContent.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeGroupContent))
                 {
                     groupContent = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, GroupContentNot.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeGroupContentNot))
                 {
                     groupContentNot = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Tags.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeTags))
                 {
                     tags = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Order.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeOrder))
                 {
-                    orderByString = StlDataUtility.GetContentOrderByString(pageInfo.SiteId, value, ETaxisType.OrderByTaxisDesc);
+                    orderByString = StlDataUtility.GetContentOrderByString(value, ETaxisType.OrderByTaxisDesc);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, StartNum.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeStartNum))
                 {
                     startNum = TranslateUtils.ToInt(value, 1);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, TotalNum.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeTotalNum))
                 {
                     totalNum = TranslateUtils.ToInt(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, TitleWordNum.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeTitleWordNum))
                 {
                     titleWordNum = TranslateUtils.ToInt(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Where.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeWhere))
                 {
                     where = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsTop.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeIsTop))
                 {
                     isTopExists = true;
                     isTop = TranslateUtils.ToBool(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsRecommend.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeIsRecommend))
                 {
                     isRecommendExists = true;
                     isRecommend = TranslateUtils.ToBool(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsHot.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeIsHot))
                 {
                     isHotExists = true;
                     isHot = TranslateUtils.ToBool(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsColor.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeIsColor))
                 {
                     isColorExists = true;
                     isColor = TranslateUtils.ToBool(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Theme.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeTheme))
                 {
                     theme = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Width.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeWidth))
                 {
                     if (StringUtils.EndsWithIgnoreCase(value, "px"))
                     {
@@ -184,7 +180,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                     }
                     imageWidth = TranslateUtils.ToInt(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Height.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeHeight))
                 {
                     if (StringUtils.EndsWithIgnoreCase(value, "px"))
                     {
@@ -192,15 +188,15 @@ namespace SiteServer.CMS.StlParser.StlElement
                     }
                     imageHeight = TranslateUtils.ToInt(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, BgColor.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeBgColor))
                 {
                     bgColor = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsShowText.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeIsShowText))
                 {
                     isShowText = TranslateUtils.ToBool(value, true);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsTopText.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, AttributeIsTopText))
                 {
                     isTopText = value;
                 }
@@ -219,9 +215,9 @@ namespace SiteServer.CMS.StlParser.StlElement
 
             var channelId = StlDataUtility.GetChannelIdByChannelIdOrChannelIndexOrChannelName(pageInfo.SiteId, contextInfo.ChannelId, channelIndex, channelName);
 
-            var dataSource = StlDataUtility.GetContentsDataSource(pageInfo.SiteInfo, channelId, 0, groupContent, groupContentNot, tags, true, true, false, false, false, false, false, startNum, totalNum, orderByString, isTopExists, isTop, isRecommendExists, isRecommend, isHotExists, isHot, isColorExists, isColor, where, scopeType, groupChannel, groupChannelNot, null);
+            var minContentInfoList = StlDataUtility.GetMinContentInfoList(pageInfo.SiteInfo, channelId, 0, groupContent, groupContentNot, tags, true, true, false, false, false, false, false, startNum, totalNum, orderByString, isTopExists, isTop, isRecommendExists, isRecommend, isHotExists, isHot, isColorExists, isColor, where, scopeType, groupChannel, groupChannelNot, null);
 
-            if (dataSource != null)
+            if (minContentInfoList != null)
             {
                 if (StringUtils.EqualsIgnoreCase(theme, ThemeStyle2))
                 {
@@ -231,10 +227,10 @@ namespace SiteServer.CMS.StlParser.StlElement
                     var navigationUrls = new StringCollection();
                     var titleCollection = new StringCollection();
 
-                    foreach (var dataItem in dataSource.Tables[0].Rows)
+                    foreach (var minContentInfo in minContentInfoList)
                     {
-                        var contentInfo = new ContentInfo(dataItem);
-                        var imageUrl = contentInfo.GetString(BackgroundContentAttribute.ImageUrl);
+                        var contentInfo = ContentManager.GetContentInfo(pageInfo.SiteInfo, minContentInfo.ChannelId, minContentInfo.Id);
+                        var imageUrl = contentInfo.ImageUrl;
 
                         if (!string.IsNullOrEmpty(imageUrl))
                         {
@@ -318,10 +314,10 @@ so_{uniqueId}.write(""flashcontent_{uniqueId}"");
                     var navigationUrls = new StringCollection();
                     var titleCollection = new StringCollection();
 
-                    foreach (var dataItem in dataSource.Tables[0].Rows)
+                    foreach (var minContentInfo in minContentInfoList)
                     {
-                        var contentInfo = new ContentInfo(dataItem);
-                        var imageUrl = contentInfo.GetString(BackgroundContentAttribute.ImageUrl);
+                        var contentInfo = ContentManager.GetContentInfo(pageInfo.SiteInfo, minContentInfo.ChannelId, minContentInfo.Id);
+                        var imageUrl = contentInfo.Get<string>(ContentAttribute.ImageUrl);
 
                         if (!string.IsNullOrEmpty(imageUrl))
                         {
@@ -379,10 +375,10 @@ so_{uniqueId}.write(""flashcontent_{uniqueId}"");
                     var imageUrls = new StringCollection();
                     var navigationUrls = new StringCollection();
 
-                    foreach (var dataItem in dataSource.Tables[0].Rows)
+                    foreach (var minContentInfo in minContentInfoList)
                     {
-                        var contentInfo = new ContentInfo(dataItem);
-                        var imageUrl = contentInfo.GetString(BackgroundContentAttribute.ImageUrl);
+                        var contentInfo = ContentManager.GetContentInfo(pageInfo.SiteInfo, minContentInfo.ChannelId, minContentInfo.Id);
+                        var imageUrl = contentInfo.Get<string>(ContentAttribute.ImageUrl);
 
                         if (!string.IsNullOrEmpty(imageUrl))
                         {
@@ -498,10 +494,10 @@ so_{uniqueId}.write(""flashcontent_{uniqueId}"");
                     var navigationUrls = new StringCollection();
                     var titleCollection = new StringCollection();
 
-                    foreach (var dataItem in dataSource.Tables[0].Rows)
+                    foreach (var minContentInfo in minContentInfoList)
                     {
-                        var contentInfo = new ContentInfo(dataItem);
-                        var imageUrl = contentInfo.GetString(BackgroundContentAttribute.ImageUrl);
+                        var contentInfo = ContentManager.GetContentInfo(pageInfo.SiteInfo, minContentInfo.ChannelId, minContentInfo.Id);
+                        var imageUrl = contentInfo.ImageUrl;
 
                         if (!string.IsNullOrEmpty(imageUrl))
                         {
@@ -551,9 +547,7 @@ so_{uniqueId}.write(""flashcontent_{uniqueId}"");
                     var divHtml = ControlUtils.GetControlRenderHtml(genericControl);
                     string scriptHtml = $@"
 <script type=""text/javascript"" src=""{SiteFilesAssets.GetUrl(pageInfo.ApiUrl, SiteFilesAssets.BaiRongFlash.Js)}""></script>
-<SCRIPT language=javascript type=""text/javascript"">
-	<!--
-	
+<script type=""text/javascript"">
 	var uniqueID_focus_width={imageWidth}
 	var uniqueID_focus_height={imageHeight}
 	var uniqueID_text_height={textHeight}
@@ -575,9 +569,7 @@ so_{uniqueId}.write(""flashcontent_{uniqueId}"");
 	uniqueID_FocusFlash.addVariable(""borderheight"", uniqueID_focus_height);
 	uniqueID_FocusFlash.addVariable(""textheight"", uniqueID_text_height);
 	uniqueID_FocusFlash.write(""uniqueID"");
-	
-	//-->
-</SCRIPT>
+</script>
 ";
                     scriptHtml = scriptHtml.Replace("uniqueID", uniqueId);
 

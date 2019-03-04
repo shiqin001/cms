@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using SiteServer.CMS.Plugin.Model;
+using SiteServer.CMS.Plugin.Impl;
 
 namespace SiteServer.CMS.Plugin
 {
-    public class PluginStlParserContentManager
+    public static class PluginStlParserContentManager
     {
-        public static Dictionary<string, Func<PluginParseContext, string>> GetParses()
+        public static Dictionary<string, Func<ParseContextImpl, string>> GetParses()
         {
-            var elementsToParse = new Dictionary<string, Func<PluginParseContext, string>>();
+            var elementsToParse = new Dictionary<string, Func<ParseContextImpl, string>>();
 
             foreach (var service in PluginManager.Services)
             {

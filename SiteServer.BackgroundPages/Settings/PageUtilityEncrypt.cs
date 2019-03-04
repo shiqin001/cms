@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Web.UI.WebControls;
-using SiteServer.CMS.Core;
+using SiteServer.CMS.Caches;
 using SiteServer.Utils;
 
 namespace SiteServer.BackgroundPages.Settings
@@ -17,7 +17,7 @@ namespace SiteServer.BackgroundPages.Settings
 
             if (!IsPostBack)
             {
-                VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.Utility);
+                VerifySystemPermissions(ConfigManager.SettingsPermissions.Utility);
             }
         }
 

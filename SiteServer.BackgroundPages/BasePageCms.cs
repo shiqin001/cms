@@ -1,6 +1,6 @@
 ﻿using System.Collections.Specialized;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Database.Models;
 using SiteServer.Utils;
 
 namespace SiteServer.BackgroundPages
@@ -9,27 +9,27 @@ namespace SiteServer.BackgroundPages
 	{
         public bool HasChannelPermissions(int channelId, params string[] channelPermissionArray)
         {
-            return AuthRequest.AdminPermissions.HasChannelPermissions(SiteId, channelId, channelPermissionArray);
+            return AuthRequest.AdminPermissionsImpl.HasChannelPermissions(SiteId, channelId, channelPermissionArray);
         }
 
         public bool HasChannelPermissionsIgnoreChannelId(params string[] channelPermissionArray)
         {
-            return AuthRequest.AdminPermissions.HasChannelPermissionsIgnoreChannelId(channelPermissionArray);
+            return AuthRequest.AdminPermissionsImpl.HasChannelPermissionsIgnoreChannelId(channelPermissionArray);
         }
 
         public bool HasSitePermissions(params string[] websitePermissionArray)
         {
-            return AuthRequest.AdminPermissions.HasSitePermissions(SiteId, websitePermissionArray);
+            return AuthRequest.AdminPermissionsImpl.HasSitePermissions(SiteId, websitePermissionArray);
         }
 
         public bool IsOwningChannelId(int channelId)
         {
-            return AuthRequest.AdminPermissions.IsOwningChannelId(channelId);
+            return AuthRequest.AdminPermissionsImpl.IsOwningChannelId(channelId);
         }
 
         public bool IsDescendantOwningChannelId(int channelId)
         {
-            return AuthRequest.AdminPermissions.IsDescendantOwningChannelId(SiteId, channelId);
+            return AuthRequest.AdminPermissionsImpl.IsDescendantOwningChannelId(SiteId, channelId);
         }
 
         private int _siteId = -1;
@@ -59,12 +59,12 @@ namespace SiteServer.BackgroundPages
 
         public void VerifySitePermissions(params string[] sitePermissions)
         {
-            if (AuthRequest.AdminPermissions.HasSitePermissions(SiteId, sitePermissions))
+            if (AuthRequest.AdminPermissionsImpl.HasSitePermissions(SiteId, sitePermissions))
             {
                 return;
             }
             AuthRequest.AdminLogout();
-            PageUtils.Redirect(PageUtils.GetAdminDirectoryUrl(string.Empty));
+            PageUtils.Redirect(PageUtils.GetAdminUrl(string.Empty));
         }
 
         public void VerifyChannelPermissions(int channelId, params string[] channelPermissions)
@@ -74,7 +74,7 @@ namespace SiteServer.BackgroundPages
                 return;
             }
             AuthRequest.AdminLogout();
-            PageUtils.Redirect(PageUtils.GetAdminDirectoryUrl(string.Empty));
+            PageUtils.Redirect(PageUtils.GetAdminUrl(string.Empty));
         }
 
         private NameValueCollection _attributes;

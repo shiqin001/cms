@@ -2,10 +2,10 @@
 using System.Text;
 using System.Web.UI;
 using SiteServer.BackgroundPages.Core;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Enumerations;
-using SiteServer.CMS.Plugin;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Core.Enumerations;
+using SiteServer.CMS.Database.Models;
+using SiteServer.CMS.Plugin.Impl;
 using SiteServer.Utils;
 using SiteServer.Utils.Enumerations;
 
@@ -17,7 +17,9 @@ namespace SiteServer.BackgroundPages.Controls
         {
             var builder = new StringBuilder();
 
-            var request = new AuthRequest();
+#pragma warning disable CS0612 // '“RequestImpl”已过时
+            var request = new RequestImpl(Page.Request);
+#pragma warning restore CS0612 // '“RequestImpl”已过时
 
             var siteId = TranslateUtils.ToInt(Page.Request.QueryString["siteId"]);
             var contentModelPluginId = Page.Request.QueryString["contentModelPluginId"];
@@ -40,7 +42,7 @@ namespace SiteServer.BackgroundPages.Controls
                     foreach (var channelId in channelIdList)
                     {
                         var channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
-                        var enabled = request.AdminPermissions.IsOwningChannelId(channelInfo.Id);
+                        var enabled = request.AdminPermissionsImpl.IsOwningChannelId(channelInfo.Id);
                         if (!string.IsNullOrEmpty(contentModelPluginId) &&
                             !StringUtils.EqualsIgnoreCase(channelInfo.ContentModelPluginId, contentModelPluginId))
                         {
@@ -48,11 +50,11 @@ namespace SiteServer.BackgroundPages.Controls
                         }
                         if (!enabled)
                         {
-                            if (!request.AdminPermissions.IsDescendantOwningChannelId(channelInfo.SiteId, channelInfo.Id)) continue;
+                            if (!request.AdminPermissionsImpl.IsDescendantOwningChannelId(channelInfo.SiteId, channelInfo.Id)) continue;
                             if (!IsDesendantContentModelPluginIdExists(channelInfo, contentModelPluginId)) continue;
                         }
 
-                        builder.Append(ChannelLoading.GetChannelRowHtml(siteInfo, channelInfo, enabled, ELoadingType.ContentTree, additional, request.AdminPermissions));
+                        builder.Append(ChannelLoading.GetChannelRowHtml(siteInfo, channelInfo, enabled, ELoadingType.ContentTree, additional, request.AdminPermissionsImpl));
                     }
                 }
             }

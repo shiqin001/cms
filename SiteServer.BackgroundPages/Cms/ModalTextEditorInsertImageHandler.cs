@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using SiteServer.CMS.Caches;
 using SiteServer.CMS.Core;
 using SiteServer.Utils;
 

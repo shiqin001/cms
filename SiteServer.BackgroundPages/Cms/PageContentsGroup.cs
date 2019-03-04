@@ -1,13 +1,16 @@
 ﻿using System;
 using System.Collections.Specialized;
+using System.Data;
 using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.BackgroundPages.Controls;
 using SiteServer.BackgroundPages.Core;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
-using SiteServer.Plugin;
+using SiteServer.CMS.Database.Attributes;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
 
 namespace SiteServer.BackgroundPages.Cms
 {
@@ -19,7 +22,7 @@ namespace SiteServer.BackgroundPages.Cms
         public SqlPager SpContents;
 
         private string _tableName;
-        private ChannelInfo _nodeInfo;
+        private ChannelInfo _channelInfo;
         private string _contentGroupName;
 
         public static string GetRedirectUrl(int siteId, string contentGroupName)
@@ -36,14 +39,14 @@ namespace SiteServer.BackgroundPages.Cms
 
             var siteId = AuthRequest.GetQueryInt("siteId");
             _contentGroupName = AuthRequest.GetQueryString("contentGroupName");
-            _nodeInfo = ChannelManager.GetChannelInfo(siteId, siteId);
-            _tableName = ChannelManager.GetTableName(SiteInfo, _nodeInfo);
+            _channelInfo = ChannelManager.GetChannelInfo(siteId, siteId);
+            _tableName = ChannelManager.GetTableName(SiteInfo, _channelInfo);
 
             if (AuthRequest.IsQueryExists("remove"))
             {
                 var contentId = AuthRequest.GetQueryInt("contentId");
 
-                var contentInfo = DataProvider.ContentDao.GetContentInfo(_tableName, contentId);
+                var contentInfo = ContentManager.GetContentInfo(SiteInfo, _channelInfo, contentId);
                 var groupList = TranslateUtils.StringCollectionToStringList(contentInfo.GroupNameCollection);
                 if (groupList.Contains(_contentGroupName))
                 {
@@ -51,7 +54,7 @@ namespace SiteServer.BackgroundPages.Cms
                 }
 
                 contentInfo.GroupNameCollection = TranslateUtils.ObjectCollectionToString(groupList);
-                DataProvider.ContentDao.Update(_tableName, SiteInfo, contentInfo);
+                DataProvider.ContentRepository.Update(SiteInfo, _channelInfo, contentInfo);
                 AuthRequest.AddSiteLog(SiteId, "移除内容", $"内容:{contentInfo.Title}");
                 SuccessMessage("移除成功");
                 AddWaitAndRedirectScript(PageUrl);
@@ -59,8 +62,8 @@ namespace SiteServer.BackgroundPages.Cms
 
             SpContents.ControlToPaginate = RptContents;
             RptContents.ItemDataBound += RptContents_ItemDataBound;
-            SpContents.ItemsPerPage = SiteInfo.Additional.PageSize;
-            SpContents.SelectCommand = DataProvider.ContentDao.GetSqlStringByContentGroup(_tableName, _contentGroupName, siteId);
+            SpContents.ItemsPerPage = SiteInfo.PageSize;
+            SpContents.SelectCommand = DataProvider.ContentRepository.GetSqlStringByContentGroup(_tableName, _contentGroupName, siteId);
             SpContents.SortField = ContentAttribute.AddDate;
             SpContents.SortMode = SortMode.DESC;
 
@@ -82,19 +85,19 @@ namespace SiteServer.BackgroundPages.Cms
             var ltlItemEditUrl = (Literal) e.Item.FindControl("ltlItemEditUrl");
             var ltlItemDeleteUrl = (Literal) e.Item.FindControl("ltlItemDeleteUrl");
 
-            var contentInfo = new ContentInfo(e.Item.DataItem);
+            var dataView = (DataRowView) e.Item.DataItem;
+            var contentInfo = new ContentInfo(TranslateUtils.ToDictionary(dataView));
 
             ltlItemTitle.Text = WebUtils.GetContentTitle(SiteInfo, contentInfo, PageUrl);
             ltlItemChannel.Text = ChannelManager.GetChannelNameNavigation(SiteId, contentInfo.ChannelId);
             ltlItemAddDate.Text = DateUtils.GetDateAndTimeString(contentInfo.AddDate);
-            ltlItemStatus.Text = CheckManager.GetCheckState(SiteInfo, contentInfo.IsChecked,
-                contentInfo.CheckedLevel);
+            ltlItemStatus.Text = CheckManager.GetCheckState(SiteInfo, contentInfo);
 
             if (!HasChannelPermissions(contentInfo.ChannelId, ConfigManager.ChannelPermissions.ContentEdit) &&
                 AuthRequest.AdminName != contentInfo.AddUserName) return;
 
             ltlItemEditUrl.Text =
-                $@"<a href=""{WebUtils.GetContentAddEditUrl(SiteId, _nodeInfo, contentInfo.Id, PageUrl)}"">编辑</a>";
+                $@"<a href=""{WebUtils.GetContentAddEditUrl(SiteId, _channelInfo, contentInfo.Id, PageUrl)}"">编辑</a>";
 
             var removeUrl = PageUtils.GetCmsUrl(SiteId, nameof(PageContentsGroup), new NameValueCollection
             {

@@ -1,39 +1,34 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
+using SiteServer.CMS.Caches;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
-using SiteServer.CMS.StlParser.Cache;
+using SiteServer.CMS.Database.Attributes;
+using SiteServer.CMS.Database.Core;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Utility;
 using SiteServer.Plugin;
 
 namespace SiteServer.CMS.StlParser.StlEntity
 {
-    [StlClass(Usage = "栏目实体", Description = "通过 {channel.} 实体在模板中显示栏目值")]
-    public class StlChannelEntities
+    [StlElement(Title = "栏目实体", Description = "通过 {channel.} 实体在模板中显示栏目值")]
+    public static class StlChannelEntities
 	{
-        private StlChannelEntities()
-		{
-		}
-
         public const string EntityName = "channel";
 
-        public const string ChannelId = "ChannelID";
-        public const string ChannelName = "ChannelName";
-        public const string ChannelIndex = "ChannelIndex";
-		public const string Title = "Title";
-        public const string Content = "Content";
-        public const string NavigationUrl = "NavigationUrl";
-        public const string ImageUrl = "ImageUrl";
-        public const string AddDate = "AddDate";
-        public const string DirectoryName = "DirectoryName";
-        public const string Group = "Group";
-        public const string ItemIndex = "ItemIndex";
+        private const string ChannelId = nameof(ChannelId);
+	    private const string ChannelName = nameof(ChannelName);
+        private const string ChannelIndex = nameof(ChannelIndex);
+        private const string Title = nameof(Title);
+        private const string Content = nameof(Content);
+        private const string NavigationUrl = nameof(NavigationUrl);
+        private const string ImageUrl = nameof(ImageUrl);
+        private const string AddDate = nameof(AddDate);
+        private const string DirectoryName = nameof(DirectoryName);
+        private const string Group = nameof(Group);
+        private const string ItemIndex = nameof(ItemIndex);
 
-	    public static SortedList<string, string> AttributeList => new SortedList<string, string>
+        public static SortedList<string, string> AttributeList => new SortedList<string, string>
 	    {
 	        {ChannelId, "栏目ID"},
 	        {Title, "栏目名称"},
@@ -63,8 +58,8 @@ namespace SiteServer.CMS.StlParser.StlEntity
                 var channelId = contextInfo.ChannelId;
                 if (!string.IsNullOrEmpty(channelIndex))
                 {
-                    //channelId = DataProvider.ChannelDao.GetIdByIndexName(pageInfo.SiteId, channelIndex);
-                    channelId = Node.GetIdByIndexName(pageInfo.SiteId, channelIndex);
+                    //channelId = DataProvider.Channel.GetIdByIndexName(pageInfo.SiteId, channelIndex);
+                    channelId = ChannelManager.GetChannelIdByIndexName(pageInfo.SiteId, channelIndex);
                     if (channelId == 0)
                     {
                         channelId = contextInfo.ChannelId;
@@ -157,27 +152,23 @@ namespace SiteServer.CMS.StlParser.StlEntity
                 }
                 else
                 {
-                    //var styleInfo = TableStyleManager.GetTableStyleInfo(ETableStyle.Channel, DataProvider.ChannelDao.TableName, attributeName, RelatedIdentities.GetChannelRelatedIdentities(pageInfo.SiteId, nodeInfo.ChannelId));
+                    //var styleInfo = TableStyleManager.GetTableStyleInfo(ETableStyle.Channel, DataProvider.Channel.TableName, attributeName, RelatedIdentities.GetChannelRelatedIdentities(pageInfo.SiteId, nodeInfo.ChannelId));
                     //parsedContent = InputParserUtility.GetContentByTableStyle(parsedContent, ",", pageInfo.SiteInfo, ETableStyle.Channel, styleInfo, string.Empty, null, string.Empty, true);
 
-                    var formCollection = nodeInfo.Additional.ToNameValueCollection();
-                    if (formCollection != null && formCollection.Count > 0)
+                    var styleInfo = TableStyleManager.GetTableStyleInfo(DataProvider.Channel.TableName, attributeName, TableStyleManager.GetRelatedIdentities(nodeInfo));
+                    // 如果 styleInfo.TableStyleId <= 0，表示此字段已经被删除了，不需要再显示值了 ekun008
+                    if (styleInfo.Id > 0)
                     {
-                        var styleInfo = TableStyleManager.GetTableStyleInfo(DataProvider.ChannelDao.TableName, attributeName, RelatedIdentities.GetChannelRelatedIdentities(pageInfo.SiteId, nodeInfo.Id));
-                        // 如果 styleInfo.TableStyleId <= 0，表示此字段已经被删除了，不需要再显示值了 ekun008
-                        if (styleInfo.Id > 0)
+                        parsedContent = nodeInfo.Get(attributeName, styleInfo.DefaultValue);
+                        if (!string.IsNullOrEmpty(parsedContent))
                         {
-                            parsedContent = GetValue(attributeName, formCollection, false, styleInfo.DefaultValue); 
-                            if (!string.IsNullOrEmpty(parsedContent))
+                            if (InputTypeUtils.EqualsAny(styleInfo.Type, InputType.Image, InputType.File))
                             {
-                                if (InputTypeUtils.EqualsAny(styleInfo.InputType, InputType.Image, InputType.File))
-                                {
-                                    parsedContent = PageUtility.ParseNavigationUrl(pageInfo.SiteInfo, parsedContent, pageInfo.IsLocal); 
-                                }
-                                else
-                                {
-                                    parsedContent = InputParserUtility.GetContentByTableStyle(parsedContent, null, pageInfo.SiteInfo, styleInfo, string.Empty, null, string.Empty, true);
-                                }
+                                parsedContent = PageUtility.ParseNavigationUrl(pageInfo.SiteInfo, parsedContent, pageInfo.IsLocal);
+                            }
+                            else
+                            {
+                                parsedContent = InputParserUtility.GetContentByTableStyle(parsedContent, null, pageInfo.SiteInfo, styleInfo, string.Empty, null, string.Empty, true);
                             }
                         }
                     }
@@ -189,21 +180,6 @@ namespace SiteServer.CMS.StlParser.StlEntity
             }
 
             return parsedContent;
-        }
-
-        private static string GetValue(string attributeName, NameValueCollection formCollection, bool isAddAndNotPostBack, string defaultValue)
-        {
-            var value = string.Empty;
-            if (formCollection?[attributeName] != null)
-            {
-                value = formCollection[attributeName];
-            }
-            if (isAddAndNotPostBack && string.IsNullOrEmpty(value))
-            {
-                value = defaultValue;
-            } 
-
-            return value;
         }
     }
 }

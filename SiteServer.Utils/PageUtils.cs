@@ -1,10 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Globalization;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
-using System.Web.UI;
 using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.Utils
@@ -13,7 +14,7 @@ namespace SiteServer.Utils
     {
         public const char SeparatorChar = '/';
 
-        public const string UnclickedUrl = "javascript:;";
+        public const string UnClickedUrl = "javascript:;";
 
         public static string ParseNavigationUrl(string url)
         {
@@ -21,6 +22,16 @@ namespace SiteServer.Utils
 
             url = url.StartsWith("~") ? Combine(ApplicationPath, url.Substring(1)) : url;
             url = url.Replace(PathUtils.SeparatorChar, SeparatorChar);
+            return url;
+        }
+
+        public static string AddEndSlashToUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url) || !url.EndsWith("/"))
+            {
+                url += "/";
+            }
+
             return url;
         }
 
@@ -38,7 +49,7 @@ namespace SiteServer.Utils
         /// <returns></returns>
         public static string AddProtocolToUrl(string url, string host)
         {
-            if (url == UnclickedUrl)
+            if (url == UnClickedUrl)
             {
                 return url;
             }
@@ -87,18 +98,6 @@ namespace SiteServer.Utils
             return url;
         }
 
-        public static string RemovePortFromUrl(string url)
-        {
-            var retval = string.Empty;
-
-            if (!string.IsNullOrEmpty(url))
-            {
-                var regex = new Regex(@":\d+");
-                retval = regex.Replace(url, "");
-            }
-            return retval;
-        }
-
         public static string RemoveFileNameFromUrl(string url)
         {
             if (string.IsNullOrEmpty(url)) return string.Empty;
@@ -138,11 +137,6 @@ namespace SiteServer.Utils
 
             url = url.Trim();
             return url.StartsWith("/") || url.IndexOf("://", StringComparison.Ordinal) != -1 || url.StartsWith("javascript:");
-        }
-
-        public static string GetAbsoluteUrl()
-        {
-            return HttpContext.Current.Request.Url.AbsoluteUri;
         }
 
         public static string PathDifference(string path1, string path2, bool compareCase)
@@ -261,9 +255,17 @@ namespace SiteServer.Utils
             return Combine(ApplicationPath, relatedUrl);
         }
 
-        public static string GetTemporaryFilesUrl(string relatedUrl)
+        public static string HttpContextRootDomain
         {
-            return Combine(ApplicationPath, DirectoryUtils.SiteFiles.DirectoryName, DirectoryUtils.SiteFiles.TemporaryFiles, relatedUrl);
+            get
+            {
+                var url = HttpContext.Current.Request.Url;
+
+                if (url.HostNameType != UriHostNameType.Dns) return url.Host;
+
+                var match = Regex.Match(url.Host, "([^.]+\\.[^.]{1,3}(\\.[^.]{1,3})?)$");
+                return match.Groups[1].Success ? match.Groups[1].Value : null;
+            }
         }
 
         public static NameValueCollection GetQueryString(string url)
@@ -284,7 +286,7 @@ namespace SiteServer.Utils
             var originals = TranslateUtils.ToNameValueCollection(querystring);
             foreach (string key in originals.Keys)
             {
-                attributes[key] = FilterXss(originals[key]);
+                attributes[key] = AttackUtils.FilterXss(originals[key]);
             }
             return attributes;
         }
@@ -350,7 +352,7 @@ namespace SiteServer.Utils
             var builder = new StringBuilder();
             foreach (string key in queryString.Keys)
             {
-                builder.Append($"&{key}={HttpUtility.UrlEncode(queryString[key])}");
+                builder.Append($"&{key}={UrlEncode(queryString[key])}");
             }
             if (url.IndexOf("?", StringComparison.Ordinal) == -1)
             {
@@ -386,6 +388,18 @@ namespace SiteServer.Utils
             return AddQueryString(url, queryString);
         }
 
+        public static string RemoveQueryString(string url)
+        {
+            if (url == null) return null;
+
+            if (url.IndexOf("?", StringComparison.Ordinal) == -1 || url.EndsWith("?"))
+            {
+                return url;
+            }
+            
+            return url.Substring(0, url.IndexOf("?", StringComparison.Ordinal));
+        }
+
         public static string RemoveQueryString(string url, string queryString)
         {
             if (queryString == null || url == null) return url;
@@ -396,6 +410,23 @@ namespace SiteServer.Utils
             }
             var attributes = GetQueryString(url);
             attributes.Remove(queryString);
+            url = url.Substring(0, url.IndexOf("?", StringComparison.Ordinal));
+            return AddQueryString(url, attributes);
+        }
+
+        public static string RemoveQueryString(string url, List<string> queryNames)
+        {
+            if (queryNames == null || queryNames.Count == 0 || url == null) return url;
+
+            if (url.IndexOf("?", StringComparison.Ordinal) == -1 || url.EndsWith("?"))
+            {
+                return url;
+            }
+            var attributes = GetQueryString(url);
+            foreach (var queryName in queryNames)
+            {
+                attributes.Remove(queryName);
+            }
             url = url.Substring(0, url.IndexOf("?", StringComparison.Ordinal));
             return AddQueryString(url, attributes);
         }
@@ -473,7 +504,7 @@ namespace SiteServer.Utils
                     i *= b + 1;
                 }
                 sessionId = $"{i - DateTime.Now.Ticks:x}";
-                CookieUtils.SetCookie("SiteServer.SessionID", sessionId, DateTime.Now.AddDays(100));
+                CookieUtils.SetCookie("SiteServer.SessionID", sessionId, TimeSpan.FromDays(100));
                 return sessionId;
             }
         }
@@ -732,60 +763,17 @@ namespace SiteServer.Utils
 
         public static string UrlEncode(string urlString)
         {
-            if (urlString == null || urlString == "$4")
-            {
-                return string.Empty;
-            }
-
-            var newValue = urlString.Replace("\"", "'");
-            newValue = HttpUtility.UrlEncode(newValue);
-            newValue = newValue.Replace("%2f", "/");
-            return newValue;
-        }
-
-        public static string UrlEncode(string urlString, string encoding)
-        {
-            if (urlString == null || urlString == "$4")
-            {
-                return string.Empty;
-            }
-
-            var newValue = urlString.Replace("\"", "'");
-            newValue = HttpUtility.UrlEncode(newValue, Encoding.GetEncoding(encoding));
-            newValue = newValue.Replace("%2f", "/");
-            return newValue;
-        }
-
-        public static string UrlEncode(string urlString, ECharset charset)
-        {
-            if (urlString == null || urlString == "$4")
-            {
-                return string.Empty;
-            }
-
-            var newValue = urlString.Replace("\"", "'");
-            newValue = HttpUtility.UrlEncode(newValue, ECharsetUtils.GetEncoding(charset));
-            newValue = newValue.Replace("%2f", "/");
-            return newValue;
-        }
-
-        public static string UrlDecode(string urlString, string encoding)
-        {
-            return HttpUtility.UrlDecode(urlString, Encoding.GetEncoding(encoding));
-        }
-
-        public static string UrlDecode(string urlString, ECharset charset)
-        {
-            return HttpUtility.UrlDecode(urlString, ECharsetUtils.GetEncoding(charset));
+            return WebUtility.UrlEncode(urlString);
         }
 
         public static string UrlDecode(string urlString)
         {
-            return HttpContext.Current.Server.UrlDecode(urlString);
+            return WebUtility.UrlDecode(urlString);
         }
 
         public static void Redirect(string url)
         {
+            if (string.IsNullOrWhiteSpace(url)) return;
             var response = HttpContext.Current.Response;
             response.Clear();//这里是关键，清除在返回前已经设置好的标头信息，这样后面的跳转才不会报错
             response.BufferOutput = true;//设置输出缓冲
@@ -814,14 +802,38 @@ namespace SiteServer.Utils
             Download(response, filePath, fileName);
         }
 
-        public static string GetAdminDirectoryUrl(string relatedUrl)
+        public static string GetMainUrl(int siteId, string pageUrl)
+        {
+            var queryString = new NameValueCollection();
+            if (siteId > 0)
+            {
+                queryString.Add("siteId", siteId.ToString());
+            }
+            if (!string.IsNullOrEmpty(pageUrl))
+            {
+                queryString.Add("pageUrl", UrlEncode(pageUrl));
+            }
+            return AddQueryString(AdminPagesUtils.MainUrl, queryString);
+        }
+
+        public static string GetAdminUrl(string relatedUrl)
         {
             return Combine(ApplicationPath, WebConfigUtils.AdminDirectory, relatedUrl);
+        }
+
+        public static string GetHomeUrl(string relatedUrl)
+        {
+            return Combine(ApplicationPath, WebConfigUtils.HomeDirectory, relatedUrl);
         }
 
         public static string GetSiteFilesUrl(string relatedUrl)
         {
             return Combine(ApplicationPath, DirectoryUtils.SiteFiles.DirectoryName, relatedUrl);
+        }
+
+        public static string GetTemporaryFilesUrl(string relatedUrl)
+        {
+            return Combine(ApplicationPath, DirectoryUtils.SiteFiles.DirectoryName, DirectoryUtils.SiteFiles.TemporaryFiles, relatedUrl);
         }
 
         public static string GetSiteTemplatesUrl(string relatedUrl)
@@ -847,7 +859,7 @@ namespace SiteServer.Utils
 
             if (StringUtils.StartsWith(url, "@/"))
             {
-                return GetAdminDirectoryUrl(url.Substring(1));
+                return GetAdminUrl(url.Substring(1));
             }
 
             return GetSiteFilesUrl(Combine(DirectoryUtils.SiteFiles.Plugins, pluginId, url));
@@ -855,64 +867,31 @@ namespace SiteServer.Utils
 
         public static string GetSiteServerUrl(string className, NameValueCollection queryString)
         {
-            return AddQueryString(GetAdminDirectoryUrl(className.ToLower() + ".aspx"), queryString);
-        }
-
-        public static string GetPluginsUrl(string className, NameValueCollection queryString)
-        {
-            return AddQueryString(GetAdminDirectoryUrl(Combine("plugins", className.ToLower() + ".aspx")), queryString);
+            return AddQueryString(GetAdminUrl(className.ToCamelCase() + ".aspx"), queryString);
         }
 
         public static string GetSettingsUrl(string className, NameValueCollection queryString)
         {
-            return AddQueryString(GetAdminDirectoryUrl(Combine("settings", className.ToLower() + ".aspx")), queryString);
+            return AddQueryString(GetAdminUrl(Combine("Settings", className.ToCamelCase() + ".aspx")), queryString);
         }
 
         public static string GetCmsUrl(int siteId, string className, NameValueCollection queryString)
         {
             queryString = queryString ?? new NameValueCollection();
             queryString.Remove("siteId");
-            return AddQueryString(GetAdminDirectoryUrl($"cms/{className.ToLower()}.aspx?siteId={siteId}"), queryString);
+            return AddQueryString(GetAdminUrl($"Cms/{className.ToCamelCase()}.aspx?siteId={siteId}"), queryString);
         }
 
         public static string GetCmsWebHandlerUrl(int siteId, string className, NameValueCollection queryString)
         {
             queryString = queryString ?? new NameValueCollection();
             queryString.Remove("siteId");
-            return AddQueryString(GetAdminDirectoryUrl($"cms/{className.ToLower()}.ashx?siteId={siteId}"), queryString);
+            return AddQueryString(GetAdminUrl($"Cms/{className.ToCamelCase()}.ashx?siteId={siteId}"), queryString);
         }
 
         public static string GetAjaxUrl(string className, NameValueCollection queryString)
         {
-            return AddQueryString(GetAdminDirectoryUrl(Combine("ajax", className.ToLower() + ".aspx")), queryString);
-        }
-
-        public static string GetUserFilesUrl(string userName, string relatedUrl)
-        {
-            if (IsVirtualUrl(relatedUrl))
-            {
-                return ParseNavigationUrl(relatedUrl);
-            }
-            return Combine(ApplicationPath, DirectoryUtils.SiteFiles.DirectoryName, DirectoryUtils.SiteFiles.UserFiles, userName, relatedUrl);
-        }
-
-        public static string GetUserFileSystemManagementDirectoryUrl(string userName, string currentRootPath)
-        {
-            var directoryUrl = string.Empty;
-            if (string.IsNullOrEmpty(currentRootPath) || !(currentRootPath.StartsWith("~/")))
-            {
-                currentRootPath = "~/" + currentRootPath;
-            }
-            var directoryNames = currentRootPath.Split('/');
-            foreach (var directoryName in directoryNames)
-            {
-                if (!string.IsNullOrEmpty(directoryName))
-                {
-                    directoryUrl = directoryName.Equals("~") ? GetUserFilesUrl(string.Empty, userName) : Combine(directoryUrl, directoryName);
-                }
-
-            }
-            return directoryUrl;
+            return AddQueryString(GetAdminUrl(Combine("ajax", className.ToLower() + ".aspx")), queryString);
         }
 
         public static void RedirectToErrorPage(int logId)
@@ -927,12 +906,12 @@ namespace SiteServer.Utils
 
         public static string GetErrorPageUrl(int logId)
         {
-            return GetAdminDirectoryUrl($"pageError.html?logId={logId}");
+            return $"{AdminPagesUtils.ErrorUrl}?logId={logId}";
         }
 
         public static string GetErrorPageUrl(string message)
         {
-            return GetAdminDirectoryUrl($"pageError.html?message={HttpUtility.UrlPathEncode(message)}");
+            return $"{AdminPagesUtils.ErrorUrl}?message={UrlEncode(message)}";
         }
 
         public static void CheckRequestParameter(params string[] parameters)
@@ -949,28 +928,7 @@ namespace SiteServer.Utils
 
         public static void RedirectToLoginPage()
         {
-            RedirectToLoginPage(string.Empty);
-        }
-
-        public static void RedirectToLoginPage(string error)
-        {
-            var pageUrl = GetAdminDirectoryUrl("login.aspx");
-
-            if (!string.IsNullOrEmpty(error))
-            {
-                pageUrl = pageUrl + "?error=" + error;
-            }
-            Redirect(pageUrl);
-        }
-
-        public static void RedirectToLoadingPage(string pageUrl)
-        {
-            Redirect(GetLoadingUrl(pageUrl));
-        }
-
-        public static string AddReturnUrl(string url, string returnUrl)
-        {
-            return AddQueryString(url, "ReturnUrl", returnUrl);
+            Redirect(AdminPagesUtils.LoginUrl);
         }
 
         public static string GetRootUrlByPhysicalPath(string physicalPath)
@@ -983,35 +941,6 @@ namespace SiteServer.Utils
         public static string ParseConfigRootUrl(string url)
         {
             return ParseNavigationUrl(url);
-        }
-
-        public static string GetFileSystemManagementDirectoryUrl(string currentRootPath, string publishementSystemDir)
-        {
-            var directoryUrl = string.Empty;
-            if (string.IsNullOrEmpty(currentRootPath) || !(currentRootPath.StartsWith("~/") || currentRootPath.StartsWith("@/")))
-            {
-                currentRootPath = "@/" + currentRootPath;
-            }
-            var directoryNames = currentRootPath.Split('/');
-            foreach (var directoryName in directoryNames)
-            {
-                if (!string.IsNullOrEmpty(directoryName))
-                {
-                    if (directoryName.Equals("~"))
-                    {
-                        directoryUrl = ApplicationPath;
-                    }
-                    else if (directoryName.Equals("@"))
-                    {
-                        directoryUrl = Combine(ApplicationPath, publishementSystemDir);
-                    }
-                    else
-                    {
-                        directoryUrl = Combine(directoryUrl, directoryName);
-                    }
-                }
-            }
-            return directoryUrl;
         }
 
         public static bool IsVirtualUrl(string url)
@@ -1028,168 +957,13 @@ namespace SiteServer.Utils
 
         public static string GetLoadingUrl(string url)
         {
-            return GetAdminDirectoryUrl($"loading.aspx?redirectUrl={TranslateUtils.EncryptStringBySecretKey(url)}");
+            return $"{AdminPagesUtils.LoadingUrl}?encryptedUrl={TranslateUtils.EncryptStringBySecretKey(url)}";
         }
 
-        public static string GetSafeHtmlFragment(string content)
+        public static string GetLoadingUrl(int siteId, int channelId, int contentId)
         {
-            return Microsoft.Security.Application.AntiXss.GetSafeHtmlFragment(content);
+            return $"{AdminPagesUtils.LoadingUrl}?siteId={siteId}&channelId={channelId}&contentId={contentId}";
         }
-
-        /// <summary> 
-        ///sql和xss脚本过滤
-        /// </summary> 
-        public static string FilterSqlAndXss(string objStr)
-        {
-            return FilterXss(FilterSql(objStr));
-        }
-
-        /// <summary>     
-        /// 过滤xss攻击脚本     
-        /// </summary>      
-        public static string FilterXss(string html)
-        {
-            var retval = html;
-            if (!string.IsNullOrEmpty(retval))
-            {
-                retval = retval.Replace("@", "_at_");
-                retval = retval.Replace("&", "_and_");
-                retval = retval.Replace("#", "_sharp_");
-                retval = retval.Replace(";", "_semicolon_");
-                retval = retval.Replace(":", "_colon_");
-                retval = retval.Replace("=", "_equal_");
-                retval = retval.Replace("，", "_cn_comma_");
-                retval = retval.Replace("“", "_quotel_");
-                retval = retval.Replace("”", "_quoter_");
-                retval = retval.Replace("/", "_slash_");
-                retval = retval.Replace("|", "_or_");
-                retval = retval.Replace("-", "_shortOne_");
-                retval = retval.Replace(",", "_comma_");
-                retval = retval.Replace("\r", "_return_");
-                retval = retval.Replace("\n", "_newline_");
-
-                //中文标点符号
-                retval = retval.Replace("；", "_cn_semicolon_");
-                retval = retval.Replace("：", "_cn_colon_");
-                retval = retval.Replace("。", "_cn_stop_");
-                retval = retval.Replace("、", "_cn_tempstop_");
-                retval = retval.Replace("？", "_cn_question_");
-                retval = retval.Replace("《", "_cn_lbracket_");
-                retval = retval.Replace("》", "_cn_rbracket_");
-                retval = retval.Replace("‘", "_cn_rmark_");
-                retval = retval.Replace("’", "_cn_lmark_");
-                retval = retval.Replace("【", "_cn_slbracket_");
-                retval = retval.Replace("】", "_cn_srbracket_");
-                retval = retval.Replace("——", "_cn_extension_");
-                retval = Microsoft.Security.Application.AntiXss.HtmlEncode(retval);
-                //中文标点符号
-                retval = retval.Replace("_cn_semicolon_", "；");
-                retval = retval.Replace("_cn_colon_", "：");
-                retval = retval.Replace("_cn_stop_", "。");
-                retval = retval.Replace("_cn_tempstop_", "、");
-                retval = retval.Replace("_cn_question_", "？");
-                retval = retval.Replace("_cn_lbracket_", "《");
-                retval = retval.Replace("_cn_rbracket_", "》");
-                retval = retval.Replace("_cn_rmark_", "‘");
-                retval = retval.Replace("_cn_lmark_", "’");
-                retval = retval.Replace("_cn_slbracket_", "【");
-                retval = retval.Replace("_cn_srbracket_", "】");
-                retval = retval.Replace("_cn_extension_", "——");
-
-                retval = retval.Replace("_at_", "@");
-                retval = retval.Replace("_and_", "&");
-                retval = retval.Replace("_sharp_", "#");
-                retval = retval.Replace("_semicolon_", ";");
-                retval = retval.Replace("_colon_", ":");
-                retval = retval.Replace("_equal_", "=");
-                retval = retval.Replace("_cn_comma_", "，");
-                retval = retval.Replace("_quotel_", "“");
-                retval = retval.Replace("_quoter_", "”");
-                retval = retval.Replace("_slash_", "/");
-                retval = retval.Replace("_or_", "|");
-                retval = retval.Replace("_shortOne_", "-");
-                retval = retval.Replace("_comma_", ",");
-                retval = retval.Replace("_return_", "\r");
-                retval = retval.Replace("_newline_", "\n");
-            }
-            return retval;
-        }
-
-        /// <summary> 
-        /// 过滤sql攻击脚本 
-        /// </summary> 
-        public static string FilterSql(string objStr)
-        {
-            if (string.IsNullOrEmpty(objStr)) return string.Empty;
-
-            var isSqlExists = false;
-            const string strSql = "',--,\\(,\\)";
-            var strSqls = strSql.Split(',');
-            foreach (var sql in strSqls)
-            {
-                if (objStr.IndexOf(sql, StringComparison.Ordinal) != -1)
-                {
-                    isSqlExists = true;
-                    break;
-                }
-            }
-            if (isSqlExists)
-            {
-                return objStr.Replace("'", "_sqlquote_").Replace("--", "_sqldoulbeline_").Replace("\\(", "_sqlleftparenthesis_").Replace("\\)", "_sqlrightparenthesis_");
-            }
-            return objStr;
-        }
-
-        public static string UnFilterSql(string objStr)
-        {
-            if (string.IsNullOrEmpty(objStr)) return string.Empty;
-
-            return objStr.Replace("_sqlquote_", "'").Replace("_sqldoulbeline_", "--").Replace("_sqlleftparenthesis_", "\\(").Replace("_sqlrightparenthesis_", "\\)");
-        }
-
-        public static void ResponseToJson(string jsonString)
-        {
-            HttpContext.Current.Response.Clear();
-            HttpContext.Current.Response.ContentType = "text/html";
-            HttpContext.Current.Response.Write(jsonString);
-            HttpContext.Current.Response.End();
-        }
-
-        public class Api
-        {
-            private static string GetUrl(string relatedPath, string proco)
-            {
-                return Combine(string.IsNullOrEmpty(proco) ? GetRootUrl("api") : proco, relatedPath);
-            }
-
-            public static string GetSiteClearCacheUrl()
-            {
-                return GetUrl("cache/clearSiteCache", string.Empty);
-            }
-
-            public static string GetUserClearCacheUrl()
-            {
-                return GetUrl("cache/removeUserCache", string.Empty);
-            }
-
-            public static string GetTableStyleClearCacheUrl()
-            {
-                return GetUrl("cache/RemoveTableManagerCache", string.Empty);
-            }
-
-            public static string GetUserConfigClearCacheUrl()
-            {
-                return GetUrl("cache/RemoveUserConfigCache", string.Empty);
-            }
-        }
-
-        public static void ResponseScripts(Page page, string scripts)
-        {
-            page.Response.Clear();
-            page.Response.Write($"<script language=\"javascript\">{scripts}</script>");
-            //page.Response.End();
-        }
-
 
         public static string GetRedirectStringWithCheckBoxValue(string redirectUrl, string checkBoxServerId, string checkBoxClientId, string emptyAlertText)
         {
@@ -1206,11 +980,6 @@ namespace SiteServer.Utils
         public static string GetRedirectStringWithConfirm(string redirectUrl, string confirmString)
         {
             return $@"_confirm('{confirmString}', '{redirectUrl}');return false;";
-        }
-
-        public static string GetRedirectString(string redirectUrl)
-        {
-            return $@"window.location.href='{redirectUrl}';return false;";
         }
     }
 }

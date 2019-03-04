@@ -3,8 +3,8 @@ using System.Collections.Specialized;
 using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.BackgroundPages.Core;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model.Enumerations;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Core.Enumerations;
 using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.BackgroundPages.Cms
@@ -64,11 +64,11 @@ namespace SiteServer.BackgroundPages.Cms
                 if (!IsDescendantOwningChannelId(channelId)) e.Item.Visible = false;
             }
 
-            var nodeInfo = ChannelManager.GetChannelInfo(SiteId, channelId);
+            var channelInfo = ChannelManager.GetChannelInfo(SiteId, channelId);
 
             var ltlHtml = (Literal)e.Item.FindControl("ltlHtml");
 
-            ltlHtml.Text = ChannelLoading.GetChannelRowHtml(SiteInfo, nodeInfo, enabled, ELoadingType.TemplateFilePathRule, _additional, AuthRequest.AdminPermissions);
+            ltlHtml.Text = ChannelLoading.GetChannelRowHtml(SiteInfo, channelInfo, enabled, ELoadingType.TemplateFilePathRule, _additional, AuthRequest.AdminPermissionsImpl);
         }
 	}
 }

@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Net;
 using System.Web.UI.WebControls;
+using SiteServer.CMS.Caches;
 using SiteServer.CMS.Core;
+using SiteServer.CMS.Database.Core;
 using SiteServer.Utils;
 
 namespace SiteServer.BackgroundPages.Settings
@@ -17,7 +19,7 @@ namespace SiteServer.BackgroundPages.Settings
 
             if (IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.Utility);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.Utility);
 
             var parameterList = new List<KeyValuePair<string, string>>
             {

@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="..\packages\Microsoft.Net.Compilers.2.7.0\build\Microsoft.Net.Compilers.props" Condition="Exists('..\packages\Microsoft.Net.Compilers.2.7.0\build\Microsoft.Net.Compilers.props')" />
+  <Import Project="..\packages\Costura.Fody.3.3.2\build\Costura.Fody.props" Condition="Exists('..\packages\Costura.Fody.3.3.2\build\Costura.Fody.props')" />
+  <Import Project="..\packages\Microsoft.Net.Compilers.2.10.0\build\Microsoft.Net.Compilers.props" Condition="Exists('..\packages\Microsoft.Net.Compilers.2.10.0\build\Microsoft.Net.Compilers.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -21,10 +22,11 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>..\</OutputPath>
+    <OutputPath>bin\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <GenerateSerializationAssemblies>Auto</GenerateSerializationAssemblies>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -42,8 +44,8 @@
     <ApplicationIcon>logo.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Costura, Version=2.0.0.0, Culture=neutral, PublicKeyToken=9919ef960d84173d, processorArchitecture=MSIL">
-      <HintPath>..\packages\Costura.Fody.2.0.0\lib\net452\Costura.dll</HintPath>
+    <Reference Include="Costura, Version=3.3.2.0, Culture=neutral, PublicKeyToken=9919ef960d84173d, processorArchitecture=MSIL">
+      <HintPath>..\packages\Costura.Fody.3.3.2\lib\net40\Costura.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.Web.XmlTransform, Version=2.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>..\packages\Microsoft.Web.Xdt.2.1.1\lib\net40\Microsoft.Web.XmlTransform.dll</HintPath>
@@ -54,8 +56,8 @@
     <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <HintPath>..\packages\Newtonsoft.Json.10.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
-    <Reference Include="SiteServer.Plugin, Version=1.6.56.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\SiteServer.Plugin.1.6.56-beta\lib\net45\SiteServer.Plugin.dll</HintPath>
+    <Reference Include="Quartz, Version=3.0.6.0, Culture=neutral, PublicKeyToken=f6b8c98a402cc8a4, processorArchitecture=MSIL">
+      <HintPath>..\packages\Quartz.3.0.6\lib\net452\Quartz.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.ComponentModel" />
@@ -68,10 +70,11 @@
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.Management" />
     <Reference Include="System.Runtime" />
-    <Reference Include="System.Threading.Tasks.Extensions, Version=4.1.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Threading.Tasks.Extensions.4.3.0\lib\portable-net45+win8+wp8+wpa81\System.Threading.Tasks.Extensions.dll</HintPath>
-    </Reference>
+    <Reference Include="System.Runtime.Remoting" />
     <Reference Include="System.Transactions" />
+    <Reference Include="System.ValueTuple, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.ValueTuple.4.5.0\lib\netstandard1.0\System.ValueTuple.dll</HintPath>
+    </Reference>
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -80,161 +83,65 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Commands\BackupManager.cs" />
-    <Compile Include="Commands\VersionManager.cs" />
-    <Compile Include="Commands\UpdateManager.cs" />
-    <Compile Include="Commands\RestoreManager.cs" />
+    <Compile Include="Core\JobContextImpl.cs" />
+    <Compile Include="Jobs\BackupJob.cs" />
+    <Compile Include="Jobs\InstallJob.cs" />
+    <Compile Include="Jobs\TestJob.cs" />
+    <Compile Include="Jobs\VersionJob.cs" />
+    <Compile Include="Jobs\UpdateJob.cs" />
+    <Compile Include="Jobs\RestoreJob.cs" />
     <Compile Include="Core\CliUtils.cs" />
+    <Compile Include="Core\ProgressBar.cs" />
+    <Compile Include="Core\SchedJob.cs" />
     <Compile Include="Core\TreeInfo.cs" />
     <Compile Include="Core\TableInfo.cs" />
     <Compile Include="Core\TextLogInfo.cs" />
-    <Compile Include="Core\UpdateUtils.cs" />
+    <Compile Include="Updater\Tables\TableTemplateLog.cs" />
+    <Compile Include="Updater\Tables\TableUserLog.cs" />
+    <Compile Include="Updater\UpdateUtils.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Updater\Model36\TableAdministrator.cs" />
-    <Compile Include="Updater\Model36\TableAdministratorsInRoles.cs" />
-    <Compile Include="Updater\Model36\TableArea.cs" />
-    <Compile Include="Updater\Model36\TableDbCache.cs" />
-    <Compile Include="Updater\Model36\TableConfig.cs" />
-    <Compile Include="Updater\Model36\TableContentCheck.cs" />
-    <Compile Include="Updater\Model36\TableCount.cs" />
-    <Compile Include="Updater\Model36\TableDepartment.cs" />
-    <Compile Include="Updater\Model36\TableLog.cs" />
-    <Compile Include="Updater\Model36\TablePermissionsInRoles.cs" />
-    <Compile Include="Updater\Model36\TableRole.cs" />
-    <Compile Include="Updater\Model36\TableTable.cs" />
-    <Compile Include="Updater\Model36\TableTableMetadata.cs" />
-    <Compile Include="Updater\Model36\TableTableStyle.cs" />
-    <Compile Include="Updater\Model36\TableTableStyleItem.cs" />
-    <Compile Include="Updater\Model36\TableTag.cs" />
-    <Compile Include="Updater\Model36\TableUser.cs" />
-    <Compile Include="Updater\Model36\TableContent.cs" />
-    <Compile Include="Updater\Model36\TableContentGroup.cs" />
-    <Compile Include="Updater\Model41\TableAdministrator.cs" />
-    <Compile Include="Updater\Model41\TableAdministratorsInRoles.cs" />
-    <Compile Include="Updater\Model41\TableArea.cs" />
-    <Compile Include="Updater\Model41\TableChannel.cs" />
-    <Compile Include="Updater\Model41\TableChannelGroup.cs" />
-    <Compile Include="Updater\Model41\TableConfig.cs" />
-    <Compile Include="Updater\Model41\TableContent.cs" />
-    <Compile Include="Updater\Model41\TableContentCheck.cs" />
-    <Compile Include="Updater\Model41\TableContentGroup.cs" />
-    <Compile Include="Updater\Model41\TableCount.cs" />
-    <Compile Include="Updater\Model41\TableDbCache.cs" />
-    <Compile Include="Updater\Model41\TableDepartment.cs" />
-    <Compile Include="Updater\Model41\TableErrorLog.cs" />
-    <Compile Include="Updater\Model41\TableKeyword.cs" />
-    <Compile Include="Updater\Model41\TableLog.cs" />
-    <Compile Include="Updater\Model41\TablePermissionsInRoles.cs" />
-    <Compile Include="Updater\Model41\TableRelatedField.cs" />
-    <Compile Include="Updater\Model41\TableRelatedFieldItem.cs" />
-    <Compile Include="Updater\Model41\TableRole.cs" />
-    <Compile Include="Updater\Model41\TableSite.cs" />
-    <Compile Include="Updater\Model41\TableSiteLog.cs" />
-    <Compile Include="Updater\Model41\TableSitePermissions.cs" />
-    <Compile Include="Updater\Model41\TableTable.cs" />
-    <Compile Include="Updater\Model41\TableTableMetadata.cs" />
-    <Compile Include="Updater\Model41\TableTableStyle.cs" />
-    <Compile Include="Updater\Model41\TableTableStyleItem.cs" />
-    <Compile Include="Updater\Model41\TableTag.cs" />
-    <Compile Include="Updater\Model41\TableTemplate.cs" />
-    <Compile Include="Updater\Model41\TableTemplateLog.cs" />
-    <Compile Include="Updater\Model41\TableTemplateMatch.cs" />
-    <Compile Include="Updater\Model41\TableUser.cs" />
-    <Compile Include="Updater\Model41\TableUserLog.cs" />
-    <Compile Include="Updater\Model50\TableAdministrator.cs" />
-    <Compile Include="Updater\Model50\TableAdministratorsInRoles.cs" />
-    <Compile Include="Updater\Model50\TableArea.cs" />
-    <Compile Include="Updater\Model50\TableChannel.cs" />
-    <Compile Include="Updater\Model50\TableChannelGroup.cs" />
-    <Compile Include="Updater\Model50\TableConfig.cs" />
-    <Compile Include="Updater\Model50\TableContent.cs" />
-    <Compile Include="Updater\Model50\TableContentCheck.cs" />
-    <Compile Include="Updater\Model50\TableContentGroup.cs" />
-    <Compile Include="Updater\Model50\TableCount.cs" />
-    <Compile Include="Updater\Model50\TableDbCache.cs" />
-    <Compile Include="Updater\Model50\TableDepartment.cs" />
-    <Compile Include="Updater\Model50\TableErrorLog.cs" />
-    <Compile Include="Updater\Model50\TableKeyword.cs" />
-    <Compile Include="Updater\Model50\TableLog.cs" />
-    <Compile Include="Updater\Model50\TablePermissionsInRoles.cs" />
-    <Compile Include="Updater\Model50\TableRelatedField.cs" />
-    <Compile Include="Updater\Model50\TableRelatedFieldItem.cs" />
-    <Compile Include="Updater\Model50\TableRole.cs" />
-    <Compile Include="Updater\Model50\TableSite.cs" />
-    <Compile Include="Updater\Model50\TableSiteLog.cs" />
-    <Compile Include="Updater\Model50\TableSitePermissions.cs" />
-    <Compile Include="Updater\Model50\TableTable.cs" />
-    <Compile Include="Updater\Model50\TableTableMetadata.cs" />
-    <Compile Include="Updater\Model50\TableTableStyle.cs" />
-    <Compile Include="Updater\Model50\TableTableStyleItem.cs" />
-    <Compile Include="Updater\Model50\TableTag.cs" />
-    <Compile Include="Updater\Model50\TableTemplate.cs" />
-    <Compile Include="Updater\Model50\TableTemplateLog.cs" />
-    <Compile Include="Updater\Model50\TableTemplateMatch.cs" />
-    <Compile Include="Updater\Model50\TableUser.cs" />
-    <Compile Include="Updater\Model50\TableUserLog.cs" />
-    <Compile Include="Updater\Model40\TableAdministrator.cs" />
-    <Compile Include="Updater\Model40\TableAdministratorsInRoles.cs" />
-    <Compile Include="Updater\Model40\TableArea.cs" />
-    <Compile Include="Updater\Model40\TableChannel.cs" />
-    <Compile Include="Updater\Model40\TableChannelGroup.cs" />
-    <Compile Include="Updater\Model40\TableConfig.cs" />
-    <Compile Include="Updater\Model40\TableContent.cs" />
-    <Compile Include="Updater\Model40\TableContentCheck.cs" />
-    <Compile Include="Updater\Model40\TableContentGroup.cs" />
-    <Compile Include="Updater\Model40\TableCount.cs" />
-    <Compile Include="Updater\Model40\TableDbCache.cs" />
-    <Compile Include="Updater\Model40\TableDepartment.cs" />
-    <Compile Include="Updater\Model40\TableErrorLog.cs" />
-    <Compile Include="Updater\Model40\TableKeyword.cs" />
-    <Compile Include="Updater\Model40\TableLog.cs" />
-    <Compile Include="Updater\Model40\TablePermissionsInRoles.cs" />
-    <Compile Include="Updater\Model40\TableRelatedField.cs" />
-    <Compile Include="Updater\Model40\TableRelatedFieldItem.cs" />
-    <Compile Include="Updater\Model40\TableRole.cs" />
-    <Compile Include="Updater\Model40\TableSite.cs" />
-    <Compile Include="Updater\Model40\TableSiteLog.cs" />
-    <Compile Include="Updater\Model40\TableSitePermissions.cs" />
-    <Compile Include="Updater\Model40\TableTable.cs" />
-    <Compile Include="Updater\Model40\TableTableMetadata.cs" />
-    <Compile Include="Updater\Model40\TableTableStyle.cs" />
-    <Compile Include="Updater\Model40\TableTableStyleItem.cs" />
-    <Compile Include="Updater\Model40\TableTag.cs" />
-    <Compile Include="Updater\Model40\TableTemplate.cs" />
-    <Compile Include="Updater\Model40\TableTemplateLog.cs" />
-    <Compile Include="Updater\Model40\TableTemplateMatch.cs" />
-    <Compile Include="Updater\Model40\TableUser.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovInteractChannel.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovInteractLog.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovInteractPermissions.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovInteractRemark.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovInteractReply.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovInteractType.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovPublicApply.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovPublicApplyLog.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovPublicApplyRemark.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovPublicApplyReply.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovPublicCategory.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovPublicCategoryClass.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovPublicChannel.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovPublicIdentifierRule.cs" />
-    <Compile Include="Updater\ModelWCM\SiteserverGovPublicIdentifierSeq.cs" />
-    <Compile Include="Updater\Model36\TableKeyword.cs" />
-    <Compile Include="Updater\Model36\TableSiteLog.cs" />
-    <Compile Include="Updater\Model36\TableChannel.cs" />
-    <Compile Include="Updater\Model36\TableChannelGroup.cs" />
-    <Compile Include="Updater\Model36\TableSite.cs" />
-    <Compile Include="Updater\Model36\TableRelatedField.cs" />
-    <Compile Include="Updater\Model36\TableRelatedFieldItem.cs" />
-    <Compile Include="Updater\Model36\TableSitePermissions.cs" />
-    <Compile Include="Updater\Model36\TableTemplate.cs" />
-    <Compile Include="Updater\Model36\TableTemplateMatch.cs" />
-    <Compile Include="Updater\Updater41.cs" />
-    <Compile Include="Updater\Updater50.cs" />
-    <Compile Include="Updater\Updater40.cs" />
-    <Compile Include="Updater\UpdaterBase.cs" />
-    <Compile Include="Updater\Updater36.cs" />
+    <Compile Include="Updater\ConvertInfo.cs" />
+    <Compile Include="Updater\Tables\TableAdministrator.cs" />
+    <Compile Include="Updater\Tables\TableAdministratorsInRoles.cs" />
+    <Compile Include="Updater\Tables\TableArea.cs" />
+    <Compile Include="Updater\Tables\TableDbCache.cs" />
+    <Compile Include="Updater\Tables\TableConfig.cs" />
+    <Compile Include="Updater\Tables\TableContentCheck.cs" />
+    <Compile Include="Updater\Tables\TableDepartment.cs" />
+    <Compile Include="Updater\Tables\TableErrorLog.cs" />
+    <Compile Include="Updater\Tables\TableLog.cs" />
+    <Compile Include="Updater\Tables\TablePermissionsInRoles.cs" />
+    <Compile Include="Updater\Tables\TableRole.cs" />
+    <Compile Include="Updater\Tables\TableTableStyle.cs" />
+    <Compile Include="Updater\Tables\TableTableStyleItem.cs" />
+    <Compile Include="Updater\Tables\TableTag.cs" />
+    <Compile Include="Updater\Tables\TableUser.cs" />
+    <Compile Include="Updater\Tables\TableContentGroup.cs" />
+    <Compile Include="Updater\ContentConverter.cs" />
+    <Compile Include="Updater\Tables\GovInteract\TableGovInteractChannel.cs" />
+    <Compile Include="Updater\Tables\GovInteract\TableGovInteractContent.cs" />
+    <Compile Include="Updater\Tables\GovInteract\TableGovInteractLog.cs" />
+    <Compile Include="Updater\Tables\GovInteract\TableGovInteractPermissions.cs" />
+    <Compile Include="Updater\Tables\GovInteract\TableGovInteractRemark.cs" />
+    <Compile Include="Updater\Tables\GovInteract\TableGovInteractReply.cs" />
+    <Compile Include="Updater\Tables\GovInteract\TableGovInteractType.cs" />
+    <Compile Include="Updater\Tables\GovPublic\TableGovPublicContent.cs" />
+    <Compile Include="Updater\Tables\GovPublic\TableGovPublicCategory.cs" />
+    <Compile Include="Updater\Tables\GovPublic\TableGovPublicCategoryClass.cs" />
+    <Compile Include="Updater\Tables\GovPublic\TableGovPublicIdentifierRule.cs" />
+    <Compile Include="Updater\Tables\GovPublic\TableGovPublicIdentifierSeq.cs" />
+    <Compile Include="Updater\Tables\TableKeyword.cs" />
+    <Compile Include="Updater\Tables\TableSiteLog.cs" />
+    <Compile Include="Updater\Tables\TableChannel.cs" />
+    <Compile Include="Updater\Tables\TableChannelGroup.cs" />
+    <Compile Include="Updater\Tables\TableSite.cs" />
+    <Compile Include="Updater\Tables\TableRelatedField.cs" />
+    <Compile Include="Updater\Tables\TableRelatedFieldItem.cs" />
+    <Compile Include="Updater\Tables\TableSitePermissions.cs" />
+    <Compile Include="Updater\Tables\TableTemplate.cs" />
+    <Compile Include="Updater\Tables\Jobs\TableJobsContent.cs" />
+    <Compile Include="Updater\UpdaterManager.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -249,20 +156,23 @@
       <Project>{944127c3-915d-4f02-a534-64ec668c46ec}</Project>
       <Name>SiteServer.CMS</Name>
     </ProjectReference>
+    <ProjectReference Include="..\SiteServer.Plugin\SiteServer.Plugin.csproj">
+      <Project>{b50a541a-29dc-4084-bbfa-d60110d7ab0f}</Project>
+      <Name>SiteServer.Plugin</Name>
+    </ProjectReference>
     <ProjectReference Include="..\SiteServer.Utils\SiteServer.Utils.csproj">
       <Project>{2176d8ba-5f57-4c56-8e21-a09011517ae2}</Project>
       <Name>SiteServer.Utils</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Import Project="..\packages\Fody.3.0.3\build\Fody.targets" Condition="Exists('..\packages\Fody.3.0.3\build\Fody.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <ErrorText>这台计算机上缺少此项目引用的 NuGet 程序包。使用“NuGet 程序包还原”可下载这些程序包。有关更多信息，请参见 http://go.microsoft.com/fwlink/?LinkID=322105。缺少的文件是 {0}。</ErrorText>
     </PropertyGroup>
-    <Error Condition="!Exists('..\packages\Fody.3.0.3\build\Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Fody.3.0.3\build\Fody.targets'))" />
-    <Error Condition="!Exists('..\packages\Costura.Fody.2.0.0\build\Costura.Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Costura.Fody.2.0.0\build\Costura.Fody.targets'))" />
-    <Error Condition="!Exists('..\packages\Microsoft.Net.Compilers.2.7.0\build\Microsoft.Net.Compilers.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.Net.Compilers.2.7.0\build\Microsoft.Net.Compilers.props'))" />
+    <Error Condition="!Exists('..\packages\Microsoft.Net.Compilers.2.10.0\build\Microsoft.Net.Compilers.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.Net.Compilers.2.10.0\build\Microsoft.Net.Compilers.props'))" />
+    <Error Condition="!Exists('..\packages\Fody.4.0.2\build\Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Fody.4.0.2\build\Fody.targets'))" />
+    <Error Condition="!Exists('..\packages\Costura.Fody.3.3.2\build\Costura.Fody.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Costura.Fody.3.3.2\build\Costura.Fody.props'))" />
   </Target>
-  <Import Project="..\packages\Costura.Fody.2.0.0\build\Costura.Fody.targets" Condition="Exists('..\packages\Costura.Fody.2.0.0\build\Costura.Fody.targets')" />
+  <Import Project="..\packages\Fody.4.0.2\build\Fody.targets" Condition="Exists('..\packages\Fody.4.0.2\build\Fody.targets')" />
 </Project>

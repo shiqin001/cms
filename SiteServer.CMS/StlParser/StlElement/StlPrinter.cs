@@ -3,20 +3,26 @@ using System.Web.UI.HtmlControls;
 using SiteServer.Utils;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Utility;
-using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "打印", Description = "通过 stl:printer 标签在模板中实现打印功能")]
+    [StlElement(Title = "打印", Description = "通过 stl:printer 标签在模板中实现打印功能")]
     public class StlPrinter
 	{
         private StlPrinter() { }
         public const string ElementName = "stl:printer";
 
-        private static readonly Attr TitleId = new Attr("titleId", "页面HTML中打印标题的ID属性");
-        private static readonly Attr BodyId = new Attr("bodyId", "页面HTML中打印正文的ID属性");
-        private static readonly Attr LogoId = new Attr("logoId", "页面LOGO的ID属性");
-        private static readonly Attr LocationId = new Attr("locationId", "页面当前位置的ID属性");
+        [StlAttribute(Title = "页面Html 中打印标题的 Id 属性")]
+        private const string TitleId = nameof(TitleId);
+
+        [StlAttribute(Title = "页面Html 中打印正文的 Id 属性")]
+        private const string BodyId = nameof(BodyId);
+
+        [StlAttribute(Title = "页面Logo 的 Id 属性")]
+        private const string LogoId = nameof(LogoId);
+
+        [StlAttribute(Title = "页面当前位置的 Id 属性")]
+        private const string LocationId = nameof(LocationId);
 
         public static string Parse(PageInfo pageInfo, ContextInfo contextInfo)
 		{
@@ -26,23 +32,23 @@ namespace SiteServer.CMS.StlParser.StlElement
             var locationId = string.Empty;
             var stlAnchor = new HtmlAnchor();
 
-            foreach (var name in contextInfo.Attributes.Keys)
+            foreach (var name in contextInfo.Attributes.AllKeys)
             {
                 var value = contextInfo.Attributes[name];
 
-                if (StringUtils.EqualsIgnoreCase(name, TitleId.Name))
+                if (StringUtils.EqualsIgnoreCase(name, TitleId))
                 {
                     titleId = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, BodyId.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, BodyId))
                 {
                     bodyId = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, LogoId.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, LogoId))
                 {
                     logoId = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, LocationId.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, LocationId))
                 {
                     locationId = value;
                 }
@@ -57,7 +63,7 @@ namespace SiteServer.CMS.StlParser.StlElement
 
         private static string ParseImpl(PageInfo pageInfo, ContextInfo contextInfo, HtmlAnchor stlAnchor, string titleId, string bodyId, string logoId, string locationId)
         {
-            var jsUrl = SiteFilesAssets.GetUrl(pageInfo.ApiUrl, pageInfo.TemplateInfo.Charset == ECharset.gb2312 ? SiteFilesAssets.Print.JsGb2312 : SiteFilesAssets.Print.JsUtf8);
+            var jsUrl = SiteFilesAssets.GetUrl(pageInfo.ApiUrl, SiteFilesAssets.Print.JsUtf8);
 
             var iconUrl = SiteFilesAssets.GetUrl(pageInfo.ApiUrl, SiteFilesAssets.Print.IconUrl);
             if (!pageInfo.BodyCodes.ContainsKey(PageInfo.Const.JsAfStlPrinter))
@@ -129,13 +135,13 @@ function stlLoadPrintJs()
 ");
             }
 
-            if (string.IsNullOrEmpty(contextInfo.InnerXml))
+            if (string.IsNullOrEmpty(contextInfo.InnerHtml))
             {
                 stlAnchor.InnerHtml = "打印";
             }
             else
             {
-                var innerBuilder = new StringBuilder(contextInfo.InnerXml);
+                var innerBuilder = new StringBuilder(contextInfo.InnerHtml);
                 StlParserManager.ParseInnerContent(innerBuilder, pageInfo, contextInfo);
                 stlAnchor.InnerHtml = innerBuilder.ToString();
             }

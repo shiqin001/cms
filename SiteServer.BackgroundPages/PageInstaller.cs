@@ -1,9 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Security.Permissions;
 using System.Web.UI.HtmlControls;
 using System.Web.UI.WebControls;
+using SiteServer.CMS.Apis;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
+using SiteServer.CMS.Database.Core;
 using SiteServer.Plugin;
 using SiteServer.Utils.Enumerations;
 
@@ -54,8 +57,6 @@ namespace SiteServer.BackgroundPages
 
 	    protected override bool IsAccessable => true;
 
-	    protected override bool IsInstallerPage => true;
-
 	    public static string GetRedirectUrl()
 	    {
 	        return PageUtils.GetSiteServerUrl("installer/default", null);
@@ -85,7 +86,7 @@ namespace SiteServer.BackgroundPages
             EBooleanUtils.AddListItems(DdlIsProtectData, "加密", "不加密");
             ControlUtils.SelectSingleItemIgnoreCase(DdlIsProtectData, false.ToString());
 
-            LtlGo.Text = $@"<a class=""btn btn-success m-l-5"" href=""{PageUtils.GetAdminDirectoryUrl(string.Empty)}"">进入后台</a>";
+            LtlGo.Text = $@"<a class=""btn btn-success m-l-5"" href=""{PageUtils.GetAdminUrl(string.Empty)}"">进入后台</a>";
         }
 
         public void DdlSqlDatabaseType_SelectedIndexChanged(object sender, EventArgs e)
@@ -113,21 +114,28 @@ namespace SiteServer.BackgroundPages
                 var isRootWritable = false;
                 try
                 {
-                    var filePath = PathUtils.Combine(WebConfigUtils.PhysicalApplicationPath, "robots.txt");
-                    FileUtils.WriteText(filePath, ECharset.utf_8, @"User-agent: *
-Disallow: /SiteServer/
-Disallow: /SiteFiles/");
+                    var filePath = PathUtils.Combine(WebConfigUtils.PhysicalApplicationPath, "version.txt");
+                    FileUtils.WriteText(filePath, ECharset.utf_8, SystemManager.Version);
+
+                    var ioPermission = new FileIOPermission(FileIOPermissionAccess.Write, WebConfigUtils.PhysicalApplicationPath);
+                    ioPermission.Demand();
+
                     isRootWritable = true;
                 }
                 catch
                 {
                     // ignored
                 }
+
                 var isSiteFilesWritable = false;
                 try
                 {
                     var filePath = PathUtils.Combine(WebConfigUtils.PhysicalApplicationPath, DirectoryUtils.SiteFiles.DirectoryName, "index.htm");
                     FileUtils.WriteText(filePath, ECharset.utf_8, StringUtils.Constants.Html5Empty);
+
+                    var ioPermission = new FileIOPermission(FileIOPermissionAccess.Write, PathUtils.Combine(WebConfigUtils.PhysicalApplicationPath, DirectoryUtils.SiteFiles.DirectoryName));
+                    ioPermission.Demand();
+
                     isSiteFilesWritable = true;
                 }
                 catch
@@ -141,7 +149,7 @@ Disallow: /SiteFiles/");
 
                 if (!isRootWritable || !isSiteFilesWritable)
                 {
-                    FailMessage("系统检测到文件夹权限不足，您需要赋予可写权限");
+                    FailMessage("系统检测到文件夹权限不足，您需要赋予根目录 NETWORK SERVICE 以及 IIS_IUSRS 读写权限");
                     BtnStep2.Visible = false;
                 }
 
@@ -190,7 +198,7 @@ Disallow: /SiteFiles/");
                 else
                 {
                     var connectionStringWithoutDatabaseName = GetConnectionString(databaseType == DatabaseType.Oracle);
-                    isConnectValid = DataProvider.DatabaseDao.ConnectToServer(databaseType, connectionStringWithoutDatabaseName, out databaseNameList, out errorMessage);
+                    isConnectValid = DatabaseApi.Instance.ConnectToServer(databaseType, connectionStringWithoutDatabaseName, out databaseNameList, out errorMessage);
                 }
                 
                 if (isConnectValid)
@@ -307,7 +315,7 @@ Disallow: /SiteFiles/");
             {
                 databaseName = databaseType == DatabaseType.Oracle ? TbSqlOracleDatabase.Text : DdlSqlDatabaseName.SelectedValue;
             }
-            return SqlUtils.GetConnectionString(databaseType, TbSqlServer.Text, TranslateUtils.ToBool(DdlIsDefaultPort.SelectedValue), TranslateUtils.ToInt(TbSqlPort.Text), TbSqlUserName.Text, HihSqlHiddenPassword.Value, databaseName);
+            return WebConfigUtils.GetConnectionString(databaseType, TbSqlServer.Text, TranslateUtils.ToBool(DdlIsDefaultPort.SelectedValue), TranslateUtils.ToInt(TbSqlPort.Text), TbSqlUserName.Text, HihSqlHiddenPassword.Value, databaseName);
         }
 
         private bool CheckLoginValid(out string errorMessage)
@@ -375,7 +383,7 @@ Disallow: /SiteFiles/");
                 var databaseType = DatabaseTypeUtils.GetEnumType(DdlSqlDatabaseType.SelectedValue);
                 var connectionString = GetConnectionString(true);
 
-                WebConfigUtils.UpdateWebConfig(isProtectData, databaseType, connectionString, "SiteServer", StringUtils.GetShortGuid(), false);
+                WebConfigUtils.UpdateWebConfig(isProtectData, databaseType, connectionString, "api", "SiteServer", "Home", StringUtils.GetShortGuid(), false);
 
                 DataProvider.Reset();
 

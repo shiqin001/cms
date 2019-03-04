@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Web.UI.WebControls;
-using SiteServer.CMS.Core;
+using SiteServer.CMS.Apis;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Database.Core;
 using SiteServer.Utils;
 
 namespace SiteServer.BackgroundPages.Settings
@@ -17,8 +19,8 @@ namespace SiteServer.BackgroundPages.Settings
 
             if (IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.Utility);
-            var dt = DataProvider.LogDao.GetLastRemoveLogDate(AuthRequest.AdminName);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.Utility);
+            var dt = DataProvider.Log.GetLastRemoveLogDate();
             LtlLastExecuteDate.Text = dt == DateTime.MinValue ? "无记录" : DateUtils.GetDateAndTimeString(dt);
         }
 
@@ -26,7 +28,7 @@ namespace SiteServer.BackgroundPages.Settings
         {
             if (!Page.IsPostBack || !Page.IsValid) return;
 
-            DataProvider.DatabaseDao.DeleteDbLog();
+            DatabaseApi.Instance.DeleteDbLog();
 
             AuthRequest.AddAdminLog("清空数据库日志");
 

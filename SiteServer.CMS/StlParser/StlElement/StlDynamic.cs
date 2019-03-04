@@ -1,25 +1,42 @@
 ﻿using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Text;
-using SiteServer.CMS.Api.Sys.Stl;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Core;
+using SiteServer.CMS.Core.RestRoutes.Sys.Stl;
+using SiteServer.CMS.Database.Models;
 using SiteServer.Utils;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.StlParser.Cache;
 using SiteServer.CMS.StlParser.Model;
+using SiteServer.CMS.StlParser.Parsers;
 using SiteServer.CMS.StlParser.StlEntity;
 using SiteServer.CMS.StlParser.Utility;
 using SiteServer.Plugin;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "动态显示", Description = "通过 stl:dynamic 标签在模板中实现动态显示功能")]
+    [StlElement(Title = "动态显示", Description = "通过 stl:dynamic 标签在模板中实现动态显示功能")]
     public class StlDynamic
     {
         private StlDynamic() { }
         public const string ElementName = "stl:dynamic";
 
-        private static readonly Attr Context = new Attr("context", "所处上下文");
-        private static readonly Attr IsPageRefresh = new Attr("isPageRefresh", "翻页时是否刷新页面");
+        [StlAttribute(Title = "所处上下文")]
+        private const string Context = nameof(Context);
+
+        [StlAttribute(Title = "翻页时是否刷新页面")]
+        private const string IsPageRefresh = nameof(IsPageRefresh);
+
+        [StlAttribute(Title = "动态请求发送前执行的JS代码")]
+        private const string OnBeforeSend = nameof(OnBeforeSend);
+
+        [StlAttribute(Title = "动态请求成功后执行的JS代码")]
+        private const string OnSuccess = nameof(OnSuccess);
+
+        [StlAttribute(Title = "动态请求结束后执行的JS代码")]
+        private const string OnComplete = nameof(OnComplete);
+
+        [StlAttribute(Title = "动态请求失败后执行的JS代码")]
+        private const string OnError = nameof(OnError);
 
         internal static string Parse(PageInfo pageInfo, ContextInfo contextInfo)
         {
@@ -30,25 +47,45 @@ namespace SiteServer.CMS.StlParser.StlElement
             }
 
             var isPageRefresh = false;
+            var onBeforeSend = string.Empty;
+            var onSuccess = string.Empty;
+            var onComplete = string.Empty;
+            var onError = string.Empty;
 
-            foreach (var name in contextInfo.Attributes.Keys)
+            foreach (var name in contextInfo.Attributes.AllKeys)
             {
                 var value = contextInfo.Attributes[name];
 
-                if (StringUtils.EqualsIgnoreCase(name, Context.Name))
+                if (StringUtils.EqualsIgnoreCase(name, Context))
                 {
                     contextInfo.ContextType = EContextTypeUtils.GetEnumType(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsPageRefresh.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, IsPageRefresh))
                 {
                     isPageRefresh = TranslateUtils.ToBool(value);
                 }
+                else if (StringUtils.EqualsIgnoreCase(name, OnBeforeSend))
+                {
+                    onBeforeSend = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
+                }
+                else if (StringUtils.EqualsIgnoreCase(name, OnSuccess))
+                {
+                    onSuccess = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
+                }
+                else if (StringUtils.EqualsIgnoreCase(name, OnComplete))
+                {
+                    onComplete = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
+                }
+                else if (StringUtils.EqualsIgnoreCase(name, OnError))
+                {
+                    onError = StlEntityParser.ReplaceStlEntitiesForAttributeValue(value, pageInfo, contextInfo);
+                }
             }
 
-            return ParseImpl(pageInfo, contextInfo, contextInfo.InnerXml, isPageRefresh);
+            return ParseImpl(pageInfo, contextInfo, contextInfo.InnerHtml, isPageRefresh, onBeforeSend, onSuccess, onComplete, onError);
         }
 
-        private static string ParseImpl(PageInfo pageInfo, ContextInfo contextInfo, string templateContent, bool isPageRefresh)
+        private static string ParseImpl(PageInfo pageInfo, ContextInfo contextInfo, string templateContent, bool isPageRefresh, string onBeforeSend, string onSuccess, string onComplete, string onError)
         {
             pageInfo.AddPageBodyCodeIfNotExists(PageInfo.Const.StlClient);
 
@@ -64,7 +101,7 @@ namespace SiteServer.CMS.StlParser.StlElement
             StlParserManager.ParseInnerContent(new StringBuilder(templateContent), pageInfo, contextInfo);
 
             var apiUrl = ApiRouteActionsDynamic.GetUrl(pageInfo.ApiUrl);
-            var currentPageUrl = StlParserUtility.GetStlCurrentUrl(pageInfo.SiteInfo, contextInfo.ChannelId, contextInfo.ContentId, contextInfo.ContentInfo, pageInfo.TemplateInfo.TemplateType, pageInfo.TemplateInfo.Id, pageInfo.IsLocal);
+            var currentPageUrl = StlParserUtility.GetStlCurrentUrl(pageInfo.SiteInfo, contextInfo.ChannelId, contextInfo.ContentId, contextInfo.ContentInfo, pageInfo.TemplateInfo.Type, pageInfo.TemplateInfo.Id, pageInfo.IsLocal);
             currentPageUrl = PageUtils.AddQuestionOrAndToUrl(currentPageUrl);
             var apiParameters = ApiRouteActionsDynamic.GetParameters(pageInfo.SiteId, contextInfo.ChannelId, contextInfo.ContentId, pageInfo.TemplateInfo.Id, currentPageUrl, ajaxDivId, isPageRefresh, templateContent);
 
@@ -81,9 +118,18 @@ function {functionName}(pageNum)
     {{
         data.pageNum = pageNum;
     }}
+    var containerId = '{ajaxDivId}';
+
+    {onBeforeSend}
 
     stlClient.post(url, data, function (err, data, status) {{
-        if (!err) document.getElementById(""{ajaxDivId}"").innerHTML = data.html;
+        if (!err) {{
+            {onSuccess}
+            document.getElementById(containerId).innerHTML = data.html;
+        }} else {{
+            {onError}
+        }}
+        {onComplete}
     }});
 }}
 {functionName}(0);
@@ -96,12 +142,12 @@ function {functionName}(pageNum)
         internal static string ParseDynamicElement(string stlElement, PageInfo pageInfo, ContextInfo contextInfo)
         {
             stlElement = StringUtils.ReplaceIgnoreCase(stlElement, "isdynamic=\"true\"", string.Empty);
-            return ParseImpl(pageInfo, contextInfo, stlElement, false);
+            return ParseImpl(pageInfo, contextInfo, stlElement, false, string.Empty, string.Empty, string.Empty, string.Empty);
         }
 
-        public static string ParseDynamicContent(int siteId, int channelId, int contentId, int templateId, bool isPageRefresh, string templateContent, string pageUrl, int pageIndex, string ajaxDivId, NameValueCollection queryString, IUserInfo userInfo)
+        public static string ParseDynamicContent(int siteId, int channelId, int contentId, int templateId, bool isPageRefresh, string templateContent, string pageUrl, int pageIndex, string ajaxDivId, NameValueCollection queryString, UserInfo userInfo)
         {
-            StlCacheUtils.ClearAll();
+            StlCacheManager.ClearAll();
 
             var templateInfo = TemplateManager.GetTemplateInfo(siteId, templateId);
             //TemplateManager.GetTemplateInfo(siteID, channelID, templateType);
@@ -124,9 +170,8 @@ function {functionName}(pageNum)
                 var stlPageContentsElement = stlElement;
                 var stlPageContentsElementReplaceString = stlElement;
 
-                var pageContentsElementParser = new StlPageContents(stlPageContentsElement, pageInfo, contextInfo, true);
-                int totalNum;
-                var pageCount = pageContentsElementParser.GetPageCount(out totalNum);
+                var pageContentsElementParser = new StlPageContents(stlPageContentsElement, pageInfo, contextInfo);
+                var pageCount = pageContentsElementParser.GetPageCount(out var totalNum);
 
                 for (var currentPageIndex = 0; currentPageIndex < pageCount; currentPageIndex++)
                 {
@@ -148,9 +193,8 @@ function {functionName}(pageNum)
                 var stlPageChannelsElement = stlElement;
                 var stlPageChannelsElementReplaceString = stlElement;
 
-                var pageChannelsElementParser = new StlPageChannels(stlPageChannelsElement, pageInfo, contextInfo, true);
-                int totalNum;
-                var pageCount = pageChannelsElementParser.GetPageCount(out totalNum);
+                var pageChannelsElementParser = new StlPageChannels(stlPageChannelsElement, pageInfo, contextInfo);
+                var pageCount = pageChannelsElementParser.GetPageCount(out var totalNum);
 
                 for (var currentPageIndex = 0; currentPageIndex < pageCount; currentPageIndex++)
                 {
@@ -172,15 +216,14 @@ function {functionName}(pageNum)
                 var stlPageSqlContentsElement = stlElement;
                 var stlPageSqlContentsElementReplaceString = stlElement;
 
-                var pageSqlContentsElementParser = new StlPageSqlContents(stlPageSqlContentsElement, pageInfo, contextInfo, true);
-                int totalNum;
-                var pageCount = pageSqlContentsElementParser.GetPageCount(out totalNum);
+                var pageSqlContentsElementParser = new StlPageSqlContents(stlPageSqlContentsElement, pageInfo, contextInfo);
+                var pageCount = pageSqlContentsElementParser.GetPageCount(out var totalNum);
 
                 for (var currentPageIndex = 0; currentPageIndex < pageCount; currentPageIndex++)
                 {
                     if (currentPageIndex == pageIndex)
                     {
-                        var pageHtml = pageSqlContentsElementParser.Parse(currentPageIndex, pageCount);
+                        var pageHtml = pageSqlContentsElementParser.Parse(totalNum, currentPageIndex, pageCount, false);
                         contentBuilder.Replace(stlPageSqlContentsElementReplaceString, pageHtml);
 
                         StlParserManager.ReplacePageElementsInDynamicPage(contentBuilder, pageInfo, stlElementList, pageUrl, pageInfo.PageChannelId, currentPageIndex, pageCount, totalNum, isPageRefresh, ajaxDivId);
@@ -211,7 +254,7 @@ function {functionName}(pageNum)
 
             //var parsedContent = StlParserUtility.GetBackHtml(contentBuilder.ToString(), pageInfo);
             //return pageInfo.HeadCodesHtml + pageInfo.BodyCodesHtml + parsedContent + pageInfo.FootCodesHtml;
-            return StlParserUtility.GetBackHtml(contentBuilder.ToString(), pageInfo);
+            return contentBuilder.ToString();
         }
     }
 }

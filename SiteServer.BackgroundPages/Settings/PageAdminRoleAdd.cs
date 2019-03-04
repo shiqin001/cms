@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Text;
 using System.Web.UI.WebControls;
+using SiteServer.CMS.Caches;
 using SiteServer.Utils;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
+using SiteServer.CMS.Plugin.Impl;
 using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.BackgroundPages.Settings
@@ -78,21 +80,21 @@ namespace SiteServer.BackgroundPages.Settings
             if (IsForbidden) return;
 
             _theRoleName = AuthRequest.GetQueryString("RoleName");
-            _generalPermissionList = AuthRequest.AdminPermissions.PermissionList;
+            _generalPermissionList = AuthRequest.AdminPermissionsImpl.PermissionList;
 
             if (IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.Admin);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.Admin);
 
             if (!string.IsNullOrEmpty(_theRoleName))
             {
                 TbRoleName.Text = _theRoleName;
                 TbRoleName.Enabled = false;
-                TbDescription.Text = DataProvider.RoleDao.GetRoleDescription(_theRoleName);
+                TbDescription.Text = DataProvider.Role.GetRoleDescription(_theRoleName);
 
                 if (AuthRequest.GetQueryString("Return") == null)
                 {
-                    var systemPermissionsInfoList = DataProvider.SitePermissionsDao.GetSystemPermissionsInfoList(_theRoleName);
+                    var systemPermissionsInfoList = DataProvider.SitePermissions.GetSystemPermissionsInfoList(_theRoleName);
                     Session[SystemPermissionsInfoListKey] = systemPermissionsInfoList;
                 }
             }
@@ -118,7 +120,7 @@ namespace SiteServer.BackgroundPages.Settings
 
                 if (!string.IsNullOrEmpty(_theRoleName))
                 {
-                    var permissionList = DataProvider.PermissionsInRolesDao.GetGeneralPermissionList(new[] { _theRoleName });
+                    var permissionList = DataProvider.PermissionsInRoles.GetGeneralPermissionList(new[] { _theRoleName });
                     if (permissionList != null && permissionList.Count > 0)
                     {
                         ControlUtils.SelectMultiItems(CblPermissions, permissionList);
@@ -132,12 +134,12 @@ namespace SiteServer.BackgroundPages.Settings
             if (psPermissionsInRolesInfoList != null)
             {
                 var allSiteIdList = new List<int>();
-                foreach (var permissionSiteId in AuthRequest.AdminPermissions.SiteIdList)
+                foreach (var permissionSiteId in AuthRequest.AdminPermissionsImpl.GetSiteIdList())
                 {
-                    if (AuthRequest.AdminPermissions.HasChannelPermissions(permissionSiteId, permissionSiteId) && AuthRequest.AdminPermissions.HasSitePermissions(permissionSiteId))
+                    if (AuthRequest.AdminPermissionsImpl.HasChannelPermissions(permissionSiteId, permissionSiteId) && AuthRequest.AdminPermissionsImpl.HasSitePermissions(permissionSiteId))
                     {
-                        var listOne = AuthRequest.AdminPermissions.GetChannelPermissions(permissionSiteId, permissionSiteId);
-                        var listTwo = AuthRequest.AdminPermissions.GetSitePermissions(permissionSiteId);
+                        var listOne = AuthRequest.AdminPermissionsImpl.GetChannelPermissions(permissionSiteId, permissionSiteId);
+                        var listTwo = AuthRequest.AdminPermissionsImpl.GetSitePermissions(permissionSiteId);
                         if (listOne != null && listOne.Count > 0 || listTwo != null && listTwo.Count > 0)
                         {
                             PhSitePermissions.Visible = true;
@@ -192,11 +194,11 @@ if (ss_role) {
                     var sitePermissionsInRolesInfoList = Session[SystemPermissionsInfoListKey] as List<SitePermissionsInfo>;
 
                     var generalPermissionList = ControlUtils.GetSelectedListControlValueStringList(CblPermissions);
-                    DataProvider.PermissionsInRolesDao.UpdateRoleAndGeneralPermissions(_theRoleName, TbDescription.Text, generalPermissionList);
+                    DataProvider.PermissionsInRoles.UpdateRoleAndGeneralPermissions(_theRoleName, TbDescription.Text, generalPermissionList);
 
-                    DataProvider.SitePermissionsDao.UpdateSitePermissions(_theRoleName, sitePermissionsInRolesInfoList);
+                    DataProvider.SitePermissions.UpdateSitePermissions(_theRoleName, sitePermissionsInRolesInfoList);
 
-                    PermissionManager.ClearAllCache();
+                    PermissionsImpl.ClearAllCache();
 
                     AuthRequest.AddAdminLog("修改管理员角色", $"角色名称:{_theRoleName}");
                     SuccessMessage("角色修改成功！");
@@ -213,7 +215,7 @@ if (ss_role) {
                 {
                     FailMessage($"角色添加失败，{TbRoleName.Text}为系统角色！");
                 }
-                else if (DataProvider.RoleDao.IsRoleExists(TbRoleName.Text))
+                else if (DataProvider.Role.IsRoleExists(TbRoleName.Text))
                 {
                     FailMessage("角色添加失败，角色标识已存在！");
                 }
@@ -224,9 +226,9 @@ if (ss_role) {
 
                     try
                     {
-                        DataProvider.SitePermissionsDao.InsertRoleAndPermissions(TbRoleName.Text, AuthRequest.AdminName, TbDescription.Text, generalPermissionList, sitePermissionsInRolesInfoList);
+                        DataProvider.SitePermissions.InsertRoleAndPermissions(TbRoleName.Text, AuthRequest.AdminName, TbDescription.Text, generalPermissionList, sitePermissionsInRolesInfoList);
 
-                        PermissionManager.ClearAllCache();
+                        PermissionsImpl.ClearAllCache();
 
                         AuthRequest.AddAdminLog("新增管理员角色",
                             $"角色名称:{TbRoleName.Text}");

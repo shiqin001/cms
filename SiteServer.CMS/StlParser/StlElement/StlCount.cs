@@ -1,37 +1,49 @@
 ﻿using System;
 using System.Collections.Generic;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Stl;
 using SiteServer.Utils;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.StlParser.Cache;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Utility;
 using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "显示数值", Description = "通过 stl:count 标签在模板中显示统计数字")]
+    [StlElement(Title = "显示数值", Description = "通过 stl:count 标签在模板中显示统计数字")]
     public class StlCount
 	{
         private StlCount() { }
 		public const string ElementName = "stl:count";
 
-		private static readonly Attr Type = new Attr("type", "需要获取值的类型");
-        private static readonly Attr ChannelIndex = new Attr("channelIndex", "栏目索引");
-        private static readonly Attr ChannelName = new Attr("channelName", "栏目名称");
-        private static readonly Attr UpLevel = new Attr("upLevel", "上级栏目的级别");
-        private static readonly Attr TopLevel = new Attr("topLevel", "从首页向下的栏目级别");
-        private static readonly Attr Scope = new Attr("scope", "内容范围");
-        private static readonly Attr Since = new Attr("since", "时间段");
+		[StlAttribute(Title = "需要获取值的类型")]
+        private const string Type = nameof(Type);
+
+        [StlAttribute(Title = "栏目索引")]
+        private const string ChannelIndex = nameof(ChannelIndex);
+
+        [StlAttribute(Title = "栏目名称")]
+        private const string ChannelName = nameof(ChannelName);
+
+        [StlAttribute(Title = "上级栏目的级别")]
+        private const string UpLevel = nameof(UpLevel);
+
+        [StlAttribute(Title = "从首页向下的栏目级别")]
+        private const string TopLevel = nameof(TopLevel);
+
+        [StlAttribute(Title = "内容范围")]
+        private const string Scope = nameof(Scope);
+
+        [StlAttribute(Title = "时间段")]
+        private const string Since = nameof(Since);
+
 
         public const string TypeChannels = "Channels";
         public const string TypeContents = "Contents";
-        public const string TypeDownloads = "Downloads";
 
         public static SortedList<string, string> TypeList => new SortedList<string, string>
         {
             {TypeChannels, "栏目数"},
-            {TypeContents, "内容数"},
-            {TypeDownloads, "下载次数"}
+            {TypeContents, "内容数"}
         };
 
         public static string Parse(PageInfo pageInfo, ContextInfo contextInfo)
@@ -44,35 +56,35 @@ namespace SiteServer.CMS.StlParser.StlElement
             var scope = EScopeType.Self;
             var since = string.Empty;
 
-		    foreach (var name in contextInfo.Attributes.Keys)
+		    foreach (var name in contextInfo.Attributes.AllKeys)
 		    {
 		        var value = contextInfo.Attributes[name];
 
-                if (StringUtils.EqualsIgnoreCase(name, Type.Name))
+                if (StringUtils.EqualsIgnoreCase(name, Type))
                 {
                     type = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, ChannelIndex.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, ChannelIndex))
                 {
                     channelIndex = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, ChannelName.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, ChannelName))
                 {
                     channelName = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, UpLevel.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, UpLevel))
                 {
                     upLevel = TranslateUtils.ToInt(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, TopLevel.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, TopLevel))
                 {
                     topLevel = TranslateUtils.ToInt(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Scope.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Scope))
                 {
                     scope = EScopeTypeUtils.GetEnumType(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Since.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Since))
                 {
                     since = value;
                 }
@@ -101,7 +113,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                 foreach (var theChannelId in channelIdList)
                 {
                     var tableName = ChannelManager.GetTableName(pageInfo.SiteInfo, theChannelId);
-                    count += Content.GetCountOfContentAdd(tableName, pageInfo.SiteId, theChannelId, EScopeType.Self, sinceDate, DateTime.Now.AddDays(1), string.Empty, ETriState.True);
+                    count += StlContentCache.GetCountOfContentAdd(tableName, pageInfo.SiteId, theChannelId, EScopeType.Self, sinceDate, DateTime.Now.AddDays(1), string.Empty, ETriState.True);
                 }
             }
             else if (StringUtils.EqualsIgnoreCase(type, TypeChannels))
@@ -111,13 +123,6 @@ namespace SiteServer.CMS.StlParser.StlElement
 
                 var nodeInfo = ChannelManager.GetChannelInfo(pageInfo.SiteId, channelId);
                 count = nodeInfo.ChildrenCount;
-            }           
-            else if (StringUtils.EqualsIgnoreCase(type, TypeDownloads))
-            {
-                if (contextInfo.ContentId > 0)
-                {
-                    count = CountManager.GetCount(pageInfo.SiteInfo.TableName, contextInfo.ContentId.ToString(), ECountType.Download);
-                }
             }
 
             return count.ToString();

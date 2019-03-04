@@ -1,12 +1,13 @@
 ﻿using System.Collections.Generic;
 using Atom.Core;
+using SiteServer.CMS.Caches;
 using SiteServer.Utils;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
 
 namespace SiteServer.CMS.ImportExport.Components
 {
-    public class ContentGroupIe
+    public static class ContentGroupIe
     {
         public static AtomEntry Export(ContentGroupInfo groupInfo)
         {
@@ -27,12 +28,17 @@ namespace SiteServer.CMS.ImportExport.Components
 
             var groupName = AtomUtility.GetDcElementContent(entry.AdditionalElements, new List<string> { nameof(ContentGroupInfo.GroupName), "ContentGroupName" });
             if (string.IsNullOrEmpty(groupName)) return true;
-            if (DataProvider.ContentGroupDao.IsExists(groupName, siteId)) return true;
+            if (ContentGroupManager.IsExists(siteId, groupName)) return true;
 
             var taxis = TranslateUtils.ToInt(AtomUtility.GetDcElementContent(entry.AdditionalElements, nameof(ContentGroupInfo.Taxis)));
             var description = AtomUtility.GetDcElementContent(entry.AdditionalElements, nameof(ContentGroupInfo.Description));
-            DataProvider.ContentGroupDao.Insert(new ContentGroupInfo(groupName, siteId, taxis, description));
-
+            DataProvider.ContentGroup.Insert(new ContentGroupInfo
+            {
+                GroupName = groupName,
+                SiteId = siteId,
+                Taxis = taxis,
+                Description = description
+            });
             return true;
         }
     }

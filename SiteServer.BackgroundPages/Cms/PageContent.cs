@@ -1,13 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Data;
 using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.BackgroundPages.Controls;
 using SiteServer.BackgroundPages.Core;
+using SiteServer.CMS.Apis;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
+using SiteServer.CMS.Database.Attributes;
+using SiteServer.CMS.Database.Caches;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
 using SiteServer.CMS.Plugin;
 using SiteServer.Plugin;
 using SiteServer.Utils.Enumerations;
@@ -16,24 +20,27 @@ namespace SiteServer.BackgroundPages.Cms
 {
     public class PageContent : BasePageCms
     {
+        public Literal LtlButtonsHead;
+        public Literal LtlButtonsFoot;
+
         public Repeater RptContents;
         public Pager PgContents;
         public Literal LtlColumnsHead;
-        public Literal LtlButtons;
-        public Literal LtlMoreButtons;
         public DateTimeTextBox TbDateFrom;
         public DropDownList DdlSearchType;
         public TextBox TbKeyword;
 
         private ChannelInfo _channelInfo;
         private string _tableName;
-        private List<int> _relatedIdentities;
         private List<TableStyleInfo> _styleInfoList;
         private StringCollection _attributesOfDisplay;
         private List<TableStyleInfo> _allStyleInfoList;
-        private Dictionary<string, List<HyperLink>> _pluginLinks;
+        private List<string> _pluginIds;
+        private Dictionary<string, Dictionary<string, Func<IContentContext, string>>> _pluginColumns;
         private bool _isEdit;
         private readonly Dictionary<string, string> _nameValueCacheDict = new Dictionary<string, string>();
+
+        protected override bool IsSinglePage => true;
 
         public static string GetRedirectUrl(int siteId, int channelId)
         {
@@ -49,21 +56,22 @@ namespace SiteServer.BackgroundPages.Cms
 
             PageUtils.CheckRequestParameter("siteId", "channelId");
             var channelId = AuthRequest.GetQueryInt("channelId");
-            _relatedIdentities = RelatedIdentities.GetChannelRelatedIdentities(SiteId, channelId);
             _channelInfo = ChannelManager.GetChannelInfo(SiteId, channelId);
+
             _tableName = ChannelManager.GetTableName(SiteInfo, _channelInfo);
-            _styleInfoList = TableStyleManager.GetTableStyleInfoList(_tableName, _relatedIdentities);
+            _styleInfoList = TableStyleManager.GetContentStyleInfoList(SiteInfo, _channelInfo);
             _attributesOfDisplay = TranslateUtils.StringCollectionToStringCollection(ChannelManager.GetContentAttributesOfDisplay(SiteId, channelId));
             _allStyleInfoList = ContentUtility.GetAllTableStyleInfoList(_styleInfoList);
 
-            _pluginLinks = PluginContentManager.GetContentLinks(_channelInfo);
-            _isEdit = TextUtility.IsEdit(SiteInfo, channelId, AuthRequest.AdminPermissions);
+            _pluginIds = PluginContentManager.GetContentPluginIds(_channelInfo);
+            _pluginColumns = PluginContentManager.GetContentColumns(_pluginIds);
+            _isEdit = TextUtility.IsEdit(SiteInfo, channelId, AuthRequest.AdminPermissionsImpl);
 
-            if (_channelInfo.Additional.IsPreviewContents)
+            if (_channelInfo.Extend.IsPreviewContentsExists)
             {
                 new Action(() =>
                 {
-                    DataProvider.ContentDao.DeletePreviewContents(SiteId, _tableName, _channelInfo);
+                    _channelInfo.ContentRepository.DeletePreviewContents(SiteId, _channelInfo);
                 }).BeginInvoke(null, null);
             }
 
@@ -80,49 +88,51 @@ namespace SiteServer.BackgroundPages.Cms
 
             RptContents.ItemDataBound += RptContents_ItemDataBound;
 
-            var allLowerAttributeNameList = TableMetadataManager.GetAllLowerAttributeNameListExcludeText(_tableName);
+            var allAttributeNameList = TableColumnManager.GetTableColumnNameList(_tableName, DataType.Text);
             var pagerParam = new PagerParam
             {
                 ControlToPaginate = RptContents,
                 TableName = _tableName,
-                PageSize = SiteInfo.Additional.PageSize,
+                PageSize = SiteInfo.Extend.PageSize,
                 Page = AuthRequest.GetQueryInt(Pager.QueryNamePage, 1),
-                OrderSqlString = DataProvider.ContentDao.GetPagerOrderSqlString(_channelInfo),
-                ReturnColumnNames = TranslateUtils.ObjectCollectionToString(allLowerAttributeNameList)
+                OrderSqlString = DataProvider.ContentRepository.GetOrderString(_channelInfo, string.Empty),
+                ReturnColumnNames = allAttributeNameList
             };
 
-            var administratorName = AuthRequest.AdminPermissions.IsViewContentOnlySelf(SiteId, channelId) ? AuthRequest.AdminName : string.Empty;
+            var administratorName = AuthRequest.AdminPermissionsImpl.IsViewContentOnlySelf(SiteId, channelId) ? AuthRequest.AdminName : string.Empty;
 
             if (AuthRequest.IsQueryExists("searchType"))
             {
-                pagerParam.WhereSqlString = DataProvider.ContentDao.GetPagerWhereSqlString(allLowerAttributeNameList,
-                    SiteId, channelId, AuthRequest.AdminPermissions.IsSystemAdministrator, new List<int>
-                    {
-                        channelId
-                    }, AuthRequest.GetQueryString("searchType"), AuthRequest.GetQueryString("keyword"),
-                    AuthRequest.GetQueryString("dateFrom"), string.Empty, false, ETriState.All, false, false,
-                    administratorName);
+                pagerParam.WhereSqlString = DataProvider.ContentRepository.GetPagerWhereSqlString(SiteInfo, _channelInfo, AuthRequest.GetQueryString("searchType"), AuthRequest.GetQueryString("keyword"),
+                    AuthRequest.GetQueryString("dateFrom"), string.Empty, CheckManager.LevelInt.All, false, true, false, false, false, AuthRequest.AdminPermissionsImpl, allAttributeNameList);
                 pagerParam.TotalCount =
-                    DataProvider.DatabaseDao.GetPageTotalCount(_tableName, pagerParam.WhereSqlString);
+                    DatabaseApi.Instance.GetPageTotalCount(_tableName, pagerParam.WhereSqlString);
             }
             else
             {
-                pagerParam.WhereSqlString = DataProvider.ContentDao.GetPagerWhereSqlString(channelId, ETriState.All, administratorName);
-                pagerParam.TotalCount = _channelInfo.ContentNum;
+                pagerParam.WhereSqlString = DataProvider.ContentRepository.GetPagerWhereSqlString(channelId, ETriState.All, administratorName);
+                var count = ContentManager.GetCount(SiteInfo, _channelInfo);
+                pagerParam.TotalCount = count;
             }
 
             PgContents.Param = pagerParam;
 
             if (IsPostBack) return;
 
-            LtlButtons.Text = WebUtils.GetContentCommands(AuthRequest.AdminPermissions, SiteInfo, _channelInfo, PageUrl);
-            LtlMoreButtons.Text = WebUtils.GetContentMoreCommands(AuthRequest.AdminPermissions, SiteInfo, _channelInfo, PageUrl);
-
             PgContents.DataBind();
+
+            var btnHtmls = WebUtils.GetContentCommands(AuthRequest.AdminPermissionsImpl, SiteInfo, _channelInfo, PageUrl);
+            var btnDropDownsHtml =
+                WebUtils.GetContentMoreCommands(AuthRequest.AdminPermissionsImpl, SiteInfo, _channelInfo, PageUrl);
+            LtlButtonsHead.Text = GetButtonsHtml(true, btnHtmls, btnDropDownsHtml);
+            if (pagerParam.TotalCount > 10)
+            {
+                LtlButtonsFoot.Text = GetButtonsHtml(false, btnHtmls, btnDropDownsHtml);
+            }
 
             foreach (var styleInfo in _allStyleInfoList)
             {
-                if (styleInfo.InputType == InputType.TextEditor) continue;
+                if (styleInfo.Type == InputType.TextEditor) continue;
 
                 var listitem = new ListItem(styleInfo.DisplayName, styleInfo.AttributeName);
                 DdlSearchType.Items.Add(listitem);
@@ -136,7 +146,7 @@ namespace SiteServer.BackgroundPages.Cms
                 if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("searchType")) || !string.IsNullOrEmpty(TbDateFrom.Text) ||
                     !string.IsNullOrEmpty(TbKeyword.Text))
                 {
-                    LtlButtons.Text += @"
+                    LtlButtonsHead.Text += @"
 <script>
 $(document).ready(function() {
 	$('#contentSearch').show();
@@ -151,14 +161,30 @@ $(document).ready(function() {
                 ControlUtils.SelectSingleItem(DdlSearchType, ContentAttribute.Title);
             }
 
-            LtlColumnsHead.Text = TextUtility.GetColumnsHeadHtml(_styleInfoList, _attributesOfDisplay, SiteInfo);
+            LtlColumnsHead.Text = TextUtility.GetColumnsHeadHtml(_styleInfoList, _pluginColumns, _attributesOfDisplay);
+        }
+
+        private static string GetButtonsHtml(bool isHead, string btnsHtml, string btnDropDownsHtml)
+        {
+            return $@"<div class=""btn-toolbar"" role=""toolbar"">
+  <div class=""btn-group"">
+      {btnsHtml}
+  </div>
+
+  <div class=""btn-group ml-1"">
+    <button id=""{(isHead ? "btnHeadMore" : "btnFootMore")}"" type=""button"" class=""btn btn-light text-secondary dropdown-toggle {(isHead ? "" : "dropup")}"">更多<span class=""caret""></span></button>
+    <div id=""{(isHead ? "dropdownHeadMore" : "dropdownFootMore")}"" class=""dropdown-menu"">
+      {btnDropDownsHtml}
+    </div>
+  </div>
+</div>";
         }
 
         private void RptContents_ItemDataBound(object sender, RepeaterItemEventArgs e)
         {
             if (e.Item.ItemType != ListItemType.Item && e.Item.ItemType != ListItemType.AlternatingItem) return;
 
-            var contentInfo = new ContentInfo(e.Item.DataItem);
+            var contentInfo = new ContentInfo((IDataRecord)e.Item.DataItem);
 
             var ltlTitle = (Literal)e.Item.FindControl("ltlTitle");
             var ltlColumns = (Literal)e.Item.FindControl("ltlColumns");
@@ -168,12 +194,13 @@ $(document).ready(function() {
 
             ltlTitle.Text = WebUtils.GetContentTitle(SiteInfo, contentInfo, PageUrl);
 
-            ltlColumns.Text = TextUtility.GetColumnsHtml(_nameValueCacheDict, SiteInfo, contentInfo, _attributesOfDisplay, _allStyleInfoList);
+            ltlColumns.Text = TextUtility.GetColumnsHtml(_nameValueCacheDict, SiteInfo, contentInfo, _attributesOfDisplay, _allStyleInfoList, _pluginColumns);
 
             ltlStatus.Text =
-                $@"<a href=""javascript:;"" title=""设置内容状态"" onclick=""{ModalCheckState.GetOpenWindowString(SiteId, contentInfo, PageUrl)}"">{CheckManager.GetCheckState(SiteInfo, contentInfo.IsChecked, contentInfo.CheckedLevel)}</a>";
+                $@"<a href=""javascript:;"" title=""设置内容状态"" onclick=""{ModalCheckState.GetOpenWindowString(SiteId, contentInfo, PageUrl)}"">{CheckManager.GetCheckState(SiteInfo, contentInfo)}</a>";
 
-            ltlCommands.Text = TextUtility.GetCommandsHtml(SiteInfo, _pluginLinks, contentInfo, PageUrl, AuthRequest.AdminName, _isEdit);
+            var pluginMenus = PluginMenuManager.GetContentMenus(_pluginIds, contentInfo);
+            ltlCommands.Text = TextUtility.GetCommandsHtml(SiteInfo, pluginMenus, contentInfo, PageUrl, AuthRequest.AdminName, _isEdit);
 
             ltlSelect.Text = $@"<input type=""checkbox"" name=""contentIdCollection"" value=""{contentInfo.Id}"" />";
         }

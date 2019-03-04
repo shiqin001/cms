@@ -4,10 +4,13 @@ using System.Collections.Specialized;
 using System.Text;
 using System.Web.UI.HtmlControls;
 using System.Web.UI.WebControls;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
 using SiteServer.CMS.ImportExport;
-using SiteServer.CMS.Model;
 using SiteServer.Utils.Enumerations;
 using SiteServer.Utils.IO;
 
@@ -66,9 +69,9 @@ namespace SiteServer.BackgroundPages.Settings
 
             if (IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.Site);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.Site);
 
-            if (SiteInfo.IsRoot)
+            if (SiteInfo.Root)
             {
                 TbSiteTemplateDir.Text = "T_" + SiteInfo.SiteName;
             }
@@ -81,14 +84,14 @@ namespace SiteServer.BackgroundPages.Settings
             EBooleanUtils.AddListItems(RblIsSaveAllFiles, "全部文件", "指定文件");
             ControlUtils.SelectSingleItemIgnoreCase(RblIsSaveAllFiles, true.ToString());
 
-            var siteDirList = DataProvider.SiteDao.GetLowerSiteDirListThatNotIsRoot();
+            var siteDirList = DataProvider.Site.GetLowerSiteDirListThatNotIsRoot();
             var fileSystems = FileManager.GetFileSystemInfoExtendCollection(PathUtility.GetSitePath(SiteInfo), true);
             foreach (FileSystemInfoExtend fileSystem in fileSystems)
             {
                 if (!fileSystem.IsDirectory) continue;
 
                 var isSiteDirectory = false;
-                if (SiteInfo.IsRoot)
+                if (SiteInfo.Root)
                 {
                     foreach (var siteDir in siteDirList)
                     {
@@ -140,42 +143,45 @@ namespace SiteServer.BackgroundPages.Settings
             return htmlBuilder.ToString();
         }
 
-        private string GetTitle(ChannelInfo nodeInfo, string treeDirectoryUrl, IList<bool> isLastNodeArray)
+        private string GetTitle(ChannelInfo channelInfo, string treeDirectoryUrl, IList<bool> isLastNodeArray)
         {
             var itemBuilder = new StringBuilder();
-            if (nodeInfo.Id == SiteId)
+            if (channelInfo.Id == SiteId)
             {
-                nodeInfo.IsLastNode = true;
+                channelInfo.LastNode = true;
             }
-            if (nodeInfo.IsLastNode == false)
+            if (channelInfo.LastNode == false)
             {
-                isLastNodeArray[nodeInfo.ParentsCount] = false;
+                isLastNodeArray[channelInfo.ParentsCount] = false;
             }
             else
             {
-                isLastNodeArray[nodeInfo.ParentsCount] = true;
+                isLastNodeArray[channelInfo.ParentsCount] = true;
             }
-            for (var i = 0; i < nodeInfo.ParentsCount; i++)
+            for (var i = 0; i < channelInfo.ParentsCount; i++)
             {
                 itemBuilder.Append($"<img align=\"absmiddle\" src=\"{treeDirectoryUrl}/tree_empty.gif\"/>");
             }
-            if (nodeInfo.IsLastNode)
+            if (channelInfo.LastNode)
             {
-                itemBuilder.Append(nodeInfo.ChildrenCount > 0
+                itemBuilder.Append(channelInfo.ChildrenCount > 0
                     ? $"<img align=\"absmiddle\" src=\"{treeDirectoryUrl}/minus.png\"/>"
                     : $"<img align=\"absmiddle\" src=\"{treeDirectoryUrl}/tree_empty.gif\"/>");
             }
             else
             {
-                itemBuilder.Append(nodeInfo.ChildrenCount > 0
+                itemBuilder.Append(channelInfo.ChildrenCount > 0
                     ? $"<img align=\"absmiddle\" src=\"{treeDirectoryUrl}/minus.png\"/>"
                     : $"<img align=\"absmiddle\" src=\"{treeDirectoryUrl}/tree_empty.gif\"/>");
             }
 
+            var onlyAdminId = AuthRequest.AdminPermissionsImpl.GetOnlyAdminId(SiteId, channelInfo.Id);
+            var count = ContentManager.GetCount(SiteInfo, channelInfo, onlyAdminId);
+
             itemBuilder.Append($@"
 <span class=""checkbox checkbox-primary"" style=""padding-left: 0px;"">
-    <input type=""checkbox"" id=""ChannelIdCollection_{nodeInfo.Id}"" name=""ChannelIdCollection"" value=""{nodeInfo.Id}""/>
-    <label for=""ChannelIdCollection_{nodeInfo.Id}""> {nodeInfo.ChannelName} &nbsp;<span style=""font-size:8pt;font-family:arial"" class=""gray"">({nodeInfo.ContentNum})</span></label>
+    <input type=""checkbox"" id=""ChannelIdCollection_{channelInfo.Id}"" name=""ChannelIdCollection"" value=""{channelInfo.Id}""/>
+    <label for=""ChannelIdCollection_{channelInfo.Id}""> {channelInfo.ChannelName} &nbsp;<span style=""font-size:8pt;font-family:arial"" class=""gray"">({count})</span></label>
 </span>
 ");
 

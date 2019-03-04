@@ -2,44 +2,52 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Web.UI;
-using SiteServer.CMS.Api.Sys.Stl;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
+using SiteServer.CMS.Caches.Stl;
+using SiteServer.CMS.Core.RestRoutes.Sys.Stl;
+using SiteServer.CMS.Database.Attributes;
 using SiteServer.Utils;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model.Attributes;
-using SiteServer.CMS.StlParser.Cache;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Utility;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "条件判断", Description = "通过 stl:if 标签在模板中根据条件判断显示内容")]
+    [StlElement(Title = "条件判断", Description = "通过 stl:if 标签在模板中根据条件判断显示内容")]
     public class StlIf
     {
         private StlIf() { }
         public const string ElementName = "stl:if";
 
-        private static readonly Attr Type = new Attr("type", "测试类型");			                                    //测试类型
-        private static readonly Attr Operate = new Attr("operate", "测试操作");				                            //测试操作
-        private static readonly Attr Value = new Attr("value", "测试值");				                                //测试值
-        private static readonly Attr Context = new Attr("context", "所处上下文");                                          //所处上下文
+        [StlAttribute(Title = "测试类型")]
+        private const string Type = nameof(Type);
+
+        [StlAttribute(Title = "测试操作")]
+        private const string Op = nameof(Op);
+
+        [StlAttribute(Title = "测试值")]
+        private const string Value = nameof(Value);
+
+        [StlAttribute(Title = "所处上下文")]
+        private const string Context = nameof(Context);
 
         public const string TypeIsUserLoggin = "IsUserLoggin";                                      //用户是否已登录
         public const string TypeIsAdministratorLoggin = "IsAdministratorLoggin";                    //管理员是否已登录
         public const string TypeIsUserOrAdministratorLoggin = "IsUserOrAdministratorLoggin";        //用户或管理员是否已登录
-        public const string TypeChannelName = "ChannelName";			                            //栏目名称
-        public const string TypeChannelIndex = "ChannelIndex";			                            //栏目索引
-        public const string TypeTemplateName = "TemplateName";			                            //模板名称
-        public const string TypTemplateType = "TemplateType";			                            //模板类型
-        public const string TypeTopLevel = "TopLevel";			                                    //栏目级别
-        public const string TypeUpChannel = "UpChannel";			                                //上级栏目
-        public const string TypeUpChannelOrSelf = "UpChannelOrSelf";			                    //当前栏目或上级栏目
-        public const string TypeSelfChannel = "SelfChannel";			                            //当前栏目
-        public const string TypeGroupChannel = "GroupChannel";			                            //栏目组名称
-        public const string TypeGroupContent = "GroupContent";			                            //内容组名称
-        public const string TypeAddDate = "AddDate";			                                    //添加时间
-        public const string TypeLastEditDate = "LastEditDate";			                            //最后编辑时间（仅用于判断内容）
-        public const string TypeItemIndex = "ItemIndex";			                                //当前项序号
-        public const string TypeOddItem = "OddItem";			                                    //奇数项
+        private const string TypeChannelName = "ChannelName";			                            //栏目名称
+        private const string TypeChannelIndex = "ChannelIndex";			                            //栏目索引
+        private const string TypeTemplateName = "TemplateName";			                            //模板名称
+        private const string TypTemplateType = "TemplateType";			                            //模板类型
+        private const string TypeTopLevel = "TopLevel";			                                    //栏目级别
+        private const string TypeUpChannel = "UpChannel";			                                //上级栏目
+        private const string TypeUpChannelOrSelf = "UpChannelOrSelf";			                    //当前栏目或上级栏目
+        private const string TypeSelfChannel = "SelfChannel";			                            //当前栏目
+        private const string TypeGroupChannel = "GroupChannel";			                            //栏目组名称
+        private const string TypeGroupContent = "GroupContent";			                            //内容组名称
+        private const string TypeAddDate = "AddDate";			                                    //添加时间
+        private const string TypeLastEditDate = "LastEditDate";			                            //最后编辑时间（仅用于判断内容）
+        private const string TypeItemIndex = "ItemIndex";			                                //当前项序号
+        private const string TypeOddItem = "OddItem";			                                    //奇数项
 
         public static SortedList<string, string> TypeList => new SortedList<string, string>
         {
@@ -87,29 +95,38 @@ namespace SiteServer.CMS.StlParser.StlElement
         internal static string Parse(PageInfo pageInfo, ContextInfo contextInfo)
         {
             var testTypeStr = string.Empty;
-            var testOperate = OperateEquals;
+            var testOperate = string.Empty;
             var testValue = string.Empty;
 
-            foreach (var name in contextInfo.Attributes.Keys)
+            foreach (var name in contextInfo.Attributes.AllKeys)
             {
                 var value = contextInfo.Attributes[name];
 
-                if (StringUtils.EqualsIgnoreCase(name, Type.Name) || StringUtils.EqualsIgnoreCase(name, "testType"))
+                if (StringUtils.EqualsIgnoreCase(name, Type) || StringUtils.EqualsIgnoreCase(name, "testType"))
                 {
                     testTypeStr = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Operate.Name) || StringUtils.EqualsIgnoreCase(name, "testOperate"))
+                else if (StringUtils.EqualsIgnoreCase(name, Op) || StringUtils.EqualsIgnoreCase(name, "operate") || StringUtils.EqualsIgnoreCase(name, "testOperate"))
                 {
                     testOperate = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Value.Name) || StringUtils.EqualsIgnoreCase(name, "testValue"))
+                else if (StringUtils.EqualsIgnoreCase(name, Value) || StringUtils.EqualsIgnoreCase(name, "testValue"))
                 {
                     testValue = value;
+                    if (string.IsNullOrEmpty(testOperate))
+                    {
+                        testOperate = OperateEquals;
+                    }
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Context.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Context))
                 {
                     contextInfo.ContextType = EContextTypeUtils.GetEnumType(value);
                 }
+            }
+
+            if (string.IsNullOrEmpty(testOperate))
+            {
+                testOperate = OperateNotEmpty;
             }
 
             return ParseImpl(pageInfo, contextInfo, testTypeStr, testOperate, testValue);
@@ -120,7 +137,7 @@ namespace SiteServer.CMS.StlParser.StlElement
             string successTemplateString;
             string failureTemplateString;
 
-            StlInnerUtility.GetYesNo(contextInfo.InnerXml, out successTemplateString, out failureTemplateString);
+            StlParserUtility.GetYesNo(contextInfo.InnerHtml, out successTemplateString, out failureTemplateString);
 
             if (StringUtils.EqualsIgnoreCase(testType, TypeIsUserLoggin) ||
                 StringUtils.EqualsIgnoreCase(testType, TypeIsAdministratorLoggin) ||
@@ -150,7 +167,7 @@ namespace SiteServer.CMS.StlParser.StlElement
             }
             else if (StringUtils.EqualsIgnoreCase(testType, TypTemplateType))
             {
-                isSuccess = TestTypeValue(testOperate, testValue, pageInfo.TemplateInfo.TemplateType.Value);
+                isSuccess = TestTypeValue(testOperate, testValue, pageInfo.TemplateInfo.Type.Value);
             }
             else if (StringUtils.EqualsIgnoreCase(testType, TypeTopLevel))
             {
@@ -181,8 +198,8 @@ namespace SiteServer.CMS.StlParser.StlElement
                 if (contextInfo.ContextType == EContextType.Content)
                 {
                     var tableName = ChannelManager.GetTableName(pageInfo.SiteInfo, contextInfo.ChannelId);
-                    //var groupContents = TranslateUtils.StringCollectionToStringList(DataProvider.ContentDao.GetValue(tableName, contextInfo.ContentId, ContentAttribute.ContentGroupNameCollection));
-                    var groupContents = TranslateUtils.StringCollectionToStringList(Content.GetValue(tableName, contextInfo.ContentId, ContentAttribute.GroupNameCollection));
+                    //var groupContents = TranslateUtils.StringCollectionToStringList(DataProvider.ContentRepository.GetValueById(tableName, contextInfo.ContentId, ContentAttribute.ContentGroupNameCollection));
+                    var groupContents = TranslateUtils.StringCollectionToStringList(StlContentCache.GetValue(tableName, contextInfo.ContentId, ContentAttribute.GroupNameCollection));
                     isSuccess = TestTypeValues(testOperate, testValue, groupContents);
                 }
             }
@@ -193,7 +210,7 @@ namespace SiteServer.CMS.StlParser.StlElement
             }
             else if (StringUtils.EqualsIgnoreCase(testType, TypeLastEditDate))
             {
-                var lastEditDate = GetLastEditDateByContext(pageInfo, contextInfo);
+                var lastEditDate = GetLastEditDateByContext(contextInfo);
                 isSuccess = IsDateTime(lastEditDate, testOperate, testValue);
             }
             else if (StringUtils.EqualsIgnoreCase(testType, TypeItemIndex))
@@ -380,7 +397,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                 return string.Empty;
             }
 
-            var pageUrl = StlParserUtility.GetStlCurrentUrl(pageInfo.SiteInfo, contextInfo.ChannelId, contextInfo.ContentId, contextInfo.ContentInfo, pageInfo.TemplateInfo.TemplateType, pageInfo.TemplateInfo.Id, pageInfo.IsLocal);
+            var pageUrl = StlParserUtility.GetStlCurrentUrl(pageInfo.SiteInfo, contextInfo.ChannelId, contextInfo.ContentId, contextInfo.ContentInfo, pageInfo.TemplateInfo.Type, pageInfo.TemplateInfo.Id, pageInfo.IsLocal);
 
             var ifApiUrl = ApiRouteActionsIf.GetUrl(pageInfo.ApiUrl);
             var ifApiParms = ApiRouteActionsIf.GetParameters(pageInfo.SiteId, contextInfo.ChannelId, contextInfo.ContentId, pageInfo.TemplateInfo.Id, ajaxDivId, pageUrl, testType, testValue, testOperate, successTemplateString, failureTemplateString);
@@ -406,7 +423,7 @@ function {functionName}(pageNum)
             return builder.ToString();
         }
 
-        public static bool TestTypeValues(string testOperate, string testValue, List<string> actualValues)
+        private static bool TestTypeValues(string testOperate, string testValue, List<string> actualValues)
         {
             var isSuccess = false;
 
@@ -457,8 +474,8 @@ function {functionName}(pageNum)
                 var isIn = false;
                 foreach (var channelIndex in channelIndexes)
                 {
-                    //var parentId = DataProvider.ChannelDao.GetIdByIndexName(pageInfo.SiteId, channelIndex);
-                    var parentId = Node.GetIdByIndexName(pageInfo.SiteId, channelIndex);
+                    //var parentId = DataProvider.Channel.GetIdByIndexName(pageInfo.SiteId, channelIndex);
+                    var parentId = ChannelManager.GetChannelIdByIndexName(pageInfo.SiteId, channelIndex);
                     if (ChannelManager.IsAncestorOrSelf(pageInfo.SiteId, parentId, pageInfo.PageChannelId))
                     {
                         isIn = true;
@@ -476,8 +493,8 @@ function {functionName}(pageNum)
                 var isIn = false;
                 foreach (var channelIndex in channelIndexes)
                 {
-                    //var parentId = DataProvider.ChannelDao.GetIdByIndexName(pageInfo.SiteId, channelIndex);
-                    var parentId = Node.GetIdByIndexName(pageInfo.SiteId, channelIndex);
+                    //var parentId = DataProvider.Channel.GetIdByIndexName(pageInfo.SiteId, channelIndex);
+                    var parentId = ChannelManager.GetChannelIdByIndexName(pageInfo.SiteId, channelIndex);
                     if (ChannelManager.IsAncestorOrSelf(pageInfo.SiteId, parentId, pageInfo.PageChannelId))
                     {
                         isIn = true;
@@ -503,8 +520,8 @@ function {functionName}(pageNum)
                     var channelIndexes = TranslateUtils.StringCollectionToStringList(testValue);
                     foreach (var channelIndex in channelIndexes)
                     {
-                        //var parentId = DataProvider.ChannelDao.GetIdByIndexName(pageInfo.SiteId, channelIndex);
-                        var parentId = Node.GetIdByIndexName(pageInfo.SiteId, channelIndex);
+                        //var parentId = DataProvider.Channel.GetIdByIndexName(pageInfo.SiteId, channelIndex);
+                        var parentId = ChannelManager.GetChannelIdByIndexName(pageInfo.SiteId, channelIndex);
                         if (ChannelManager.IsAncestorOrSelf(pageInfo.SiteId, parentId, pageInfo.PageChannelId))
                         {
                             isSuccess = true;
@@ -526,8 +543,8 @@ function {functionName}(pageNum)
                 var isIn = false;
                 foreach (var channelIndex in channelIndexes)
                 {
-                    //var parentId = DataProvider.ChannelDao.GetIdByIndexName(pageInfo.SiteId, channelIndex);
-                    var parentId = Node.GetIdByIndexName(pageInfo.SiteId, channelIndex);
+                    //var parentId = DataProvider.Channel.GetIdByIndexName(pageInfo.SiteId, channelIndex);
+                    var parentId = ChannelManager.GetChannelIdByIndexName(pageInfo.SiteId, channelIndex);
                     if (parentId != pageInfo.PageChannelId &&
                         ChannelManager.IsAncestorOrSelf(pageInfo.SiteId, parentId, pageInfo.PageChannelId))
                     {
@@ -555,8 +572,8 @@ function {functionName}(pageNum)
                     var channelIndexes = TranslateUtils.StringCollectionToStringList(testValue);
                     foreach (var channelIndex in channelIndexes)
                     {
-                        //var parentId = DataProvider.ChannelDao.GetIdByIndexName(pageInfo.SiteId, channelIndex);
-                        var parentId = Node.GetIdByIndexName(pageInfo.SiteId, channelIndex);
+                        //var parentId = DataProvider.Channel.GetIdByIndexName(pageInfo.SiteId, channelIndex);
+                        var parentId = ChannelManager.GetChannelIdByIndexName(pageInfo.SiteId, channelIndex);
                         if (parentId != pageInfo.PageChannelId &&
                             ChannelManager.IsAncestorOrSelf(pageInfo.SiteId, parentId, pageInfo.PageChannelId))
                         {
@@ -569,7 +586,7 @@ function {functionName}(pageNum)
             return isSuccess;
         }
 
-        public static bool TestTypeValue(string testOperate, string testValue, string actualValue)
+        private static bool TestTypeValue(string testOperate, string testValue, string actualValue)
         {
             var isSuccess = false;
             if (StringUtils.EqualsIgnoreCase(testOperate, OperateEquals))
@@ -742,12 +759,13 @@ function {functionName}(pageNum)
             }
             else if (StringUtils.EqualsIgnoreCase(ChannelAttribute.CountOfContents, testTypeStr))
             {
-                theValue = channel.ContentNum.ToString();
+                var count = ContentManager.GetCount(pageInfo.SiteInfo, channel, true);
+                theValue = count.ToString();
             }
             else if (StringUtils.EqualsIgnoreCase(ChannelAttribute.CountOfImageContents, testTypeStr))
             {
                 //var count = DataProvider.BackgroundContentDao.GetCountCheckedImage(pageInfo.SiteId, channel.ChannelId);
-                var count = Content.GetCountCheckedImage(pageInfo.SiteId, channel.Id);
+                var count = StlContentCache.GetCountCheckedImage(pageInfo.SiteId, channel.Id);
                 theValue = count.ToString();
             }
             else if (StringUtils.EqualsIgnoreCase(ChannelAttribute.LinkUrl, testTypeStr))
@@ -756,7 +774,7 @@ function {functionName}(pageNum)
             }
             else
             {
-                theValue = channel.Additional.GetString(testTypeStr);
+                theValue = channel.Get(testTypeStr, string.Empty);
             }
             return theValue;
         }
@@ -768,39 +786,29 @@ function {functionName}(pageNum)
             if (contextInfo.ContentInfo == null)
             {
                 var tableName = ChannelManager.GetTableName(pageInfo.SiteInfo, contextInfo.ChannelId);
-                //theValue = DataProvider.ContentDao.GetValue(tableName, contextInfo.ContentId, testTypeStr);
-                theValue = Content.GetValue(tableName, contextInfo.ContentId, testTypeStr);
+                //theValue = DataProvider.ContentRepository.GetValueById(tableName, contextInfo.ContentId, testTypeStr);
+                theValue = StlContentCache.GetValue(tableName, contextInfo.ContentId, testTypeStr);
             }
             else
             {
-                theValue = contextInfo.ContentInfo.GetString(testTypeStr);
+                theValue = contextInfo.ContentInfo.Get<string>(testTypeStr);
             }
 
             return theValue;
         }
 
-        private static DateTime GetAddDateByContext(PageInfo pageInfo, ContextInfo contextInfo)
+        private static DateTime? GetAddDateByContext(PageInfo pageInfo, ContextInfo contextInfo)
         {
-            var addDate = DateUtils.SqlMinValue;
+            DateTime? addDate = null;
 
             if (contextInfo.ContextType == EContextType.Content)
             {
-                if (contextInfo.ContentInfo == null)
-                {
-                    var tableName = ChannelManager.GetTableName(pageInfo.SiteInfo, contextInfo.ChannelId);
-                    //addDate = DataProvider.ContentDao.GetAddDate(tableName, contextInfo.ContentId);
-                    addDate = Content.GetAddDate(tableName, contextInfo.ContentId);
-                }
-                else
-                {
-                    addDate = contextInfo.ContentInfo.AddDate;
-                }
+                addDate = contextInfo.ContentInfo.AddDate;
             }
             else if (contextInfo.ContextType == EContextType.Channel)
             {
                 var channel = ChannelManager.GetChannelInfo(pageInfo.SiteId, contextInfo.ChannelId);
-
-                addDate = channel.AddDate;
+                if (channel.AddDate != null) addDate = channel.AddDate.Value;
             }
             else
             {
@@ -825,43 +833,25 @@ function {functionName}(pageNum)
                 }
                 else if (contextInfo.ContentId != 0)//获取内容
                 {
-                    if (contextInfo.ContentInfo == null)
-                    {
-                        var tableName = ChannelManager.GetTableName(pageInfo.SiteInfo, contextInfo.ChannelId);
-                        //addDate = DataProvider.ContentDao.GetAddDate(tableName, contextInfo.ContentId);
-                        addDate = Content.GetAddDate(tableName, contextInfo.ContentId);
-                    }
-                    else
-                    {
-                        addDate = contextInfo.ContentInfo.AddDate;
-                    }
+                    addDate = contextInfo.ContentInfo.AddDate;
                 }
                 else if (contextInfo.ChannelId != 0)//获取栏目
                 {
                     var channel = ChannelManager.GetChannelInfo(pageInfo.SiteId, contextInfo.ChannelId);
-                    addDate = channel.AddDate;
+                    if (channel.AddDate != null) addDate = channel.AddDate.Value;
                 }
             }
 
             return addDate;
         }
 
-        private static DateTime GetLastEditDateByContext(PageInfo pageInfo, ContextInfo contextInfo)
+        private static DateTime? GetLastEditDateByContext(ContextInfo contextInfo)
         {
-            var lastEditDate = DateUtils.SqlMinValue;
+            DateTime? lastEditDate = null;
 
             if (contextInfo.ContextType == EContextType.Content)
             {
-                if (contextInfo.ContentInfo == null)
-                {
-                    var tableName = ChannelManager.GetTableName(pageInfo.SiteInfo, contextInfo.ChannelId);
-                    //lastEditDate = DataProvider.ContentDao.GetLastEditDate(tableName, contextInfo.ContentId);
-                    lastEditDate = Content.GetLastEditDate(tableName, contextInfo.ContentId);
-                }
-                else
-                {
-                    lastEditDate = contextInfo.ContentInfo.LastEditDate;
-                }
+                lastEditDate = contextInfo.ContentInfo.LastEditDate;
             }
 
             return lastEditDate;
@@ -931,7 +921,7 @@ function {functionName}(pageNum)
             return isSuccess;
         }
 
-        private static bool IsDateTime(DateTime dateTime, string testOperate, string testValue)
+        private static bool IsDateTime(DateTime? dateTime, string testOperate, string testValue)
         {
             var isSuccess = false;
 
@@ -953,7 +943,7 @@ function {functionName}(pageNum)
 
             if (StringUtils.EqualsIgnoreCase(testOperate, OperateEquals) || StringUtils.EqualsIgnoreCase(testOperate, OperateIn))
             {
-                isSuccess = dateTime.Date == dateTimeToTest.Date;
+                isSuccess = dateTime.HasValue && dateTime.Value.Date == dateTimeToTest.Date;
             }
             else if (StringUtils.EqualsIgnoreCase(testOperate, OperateGreatThan))
             {
@@ -965,7 +955,7 @@ function {functionName}(pageNum)
             }
             else if (StringUtils.EqualsIgnoreCase(testOperate, OperateNotEquals) || StringUtils.EqualsIgnoreCase(testOperate, OperateNotIn))
             {
-                isSuccess = dateTime.Date != dateTimeToTest.Date;
+                isSuccess = dateTime.HasValue && dateTime.Value.Date != dateTimeToTest.Date;
             }
 
             return isSuccess;

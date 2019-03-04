@@ -1,68 +1,27 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Text;
 using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.BackgroundPages.Cms;
-using SiteServer.BackgroundPages.Controls;
-using SiteServer.BackgroundPages.Core;
 using SiteServer.BackgroundPages.Settings;
 using SiteServer.CMS.Api;
 using SiteServer.CMS.Api.Preview;
-using SiteServer.CMS.Api.Sys.Packaging;
 using SiteServer.CMS.Core;
 using SiteServer.CMS.Model;
-using SiteServer.CMS.Packaging;
-using SiteServer.CMS.Plugin;
+using System.Linq;
+using SiteServer.BackgroundPages.Core;
+using SiteServer.CMS.DataCache;
+using SiteServer.CMS.Plugin.Impl;
 
 namespace SiteServer.BackgroundPages
 {
     public class PageMain : BasePageCms
     {
-        public Literal LtlTopMenus;
-        public PlaceHolder PhSite;
-        public Literal LtlCreateStatus;
-        public NavigationTree NtLeftManagement;
-        public NavigationTree NtLeftFunctions;
-
-        private SiteInfo _siteInfo = new SiteInfo();
-        private SiteInfo _hqSiteInfo;
-        private readonly List<int> _addedSiteIdList = new List<int>();
-
         protected override bool IsSinglePage => true;
 
-        public string SignalrHubsUrl = ApiManager.SignalrHubsUrl;
-
-        public string PackageIdSsCms = PackageUtils.PackageIdSsCms;
-
-        public string PackageList
-        {
-            get
-            {
-                var list = new List<object>();
-                var dict = PluginManager.GetPluginIdAndVersionDict();
-                foreach (var id in dict.Keys)
-                {
-                    var version = dict[id];
-                    list.Add(new
-                    {
-                        id,
-                        version
-                    });
-                }
-                return TranslateUtils.JsonSerialize(list);
-            }
-        }
-
-        public string DownloadApiUrl => ApiRouteDownload.GetUrl(ApiManager.InnerApiUrl);
-
-        public string CurrentVersion => SystemManager.Version;
-
-        public string UpdateSystemUrl => PageUpdateSystem.GetRedirectUrl();
-
-        public bool IsConsoleAdministrator => AuthRequest.AdminPermissions.IsConsoleAdministrator;
+        public string InnerApiUrl => ApiManager.InnerApiUrl.TrimEnd('/');
 
         public static string GetRedirectUrl()
         {
@@ -81,136 +40,126 @@ namespace SiteServer.BackgroundPages
         {
             if (IsForbidden) return;
 
-            var siteId = SiteId;
+            var isLeft = false;
+            var adminInfo = AuthRequest.AdminInfo;
+            var permissions = AuthRequest.AdminPermissionsImpl;
 
-            if (siteId == 0)
+            var pageSiteId = SiteId;
+            var currentSiteId = 0;
+            var siteIdList = permissions.GetSiteIdList();
+            var siteInfoList = new List<SiteInfo>();
+            SiteInfo rootSiteInfo = null;
+            foreach (var theSiteId in siteIdList)
             {
-                siteId = AuthRequest.AdminInfo.SiteId;
+                var siteInfo = SiteManager.GetSiteInfo(theSiteId);
+                if (siteInfo == null) continue;
+                if (siteInfo.IsRoot)
+                {
+                    rootSiteInfo = siteInfo;
+                }
+                siteInfoList.Add(siteInfo);
             }
 
-            var siteIdList = AuthRequest.AdminPermissions.SiteIdList;
-
-            //站点要判断是否存在，是否有权限
-            if (siteId == 0 || !SiteManager.IsExists(siteId) || !siteIdList.Contains(siteId))
+            if (siteIdList.Contains(pageSiteId))
             {
-                if (siteIdList != null && siteIdList.Count > 0)
+                currentSiteId = pageSiteId;
+            }
+            else if (siteIdList.Contains(adminInfo.SiteId))
+            {
+                currentSiteId = adminInfo.SiteId;
+            }
+
+            if (currentSiteId == 0 || !SiteManager.IsExists(currentSiteId) || !siteIdList.Contains(currentSiteId))
+            {
+                if (siteIdList.Count > 0)
                 {
-                    siteId = siteIdList[0];
+                    currentSiteId = siteIdList[0];
                 }
             }
 
-            _siteInfo = SiteManager.GetSiteInfo(siteId);
+            var currentSiteInfo = SiteManager.GetSiteInfo(currentSiteId);
+            var addedSiteIdList = new List<int>();
 
-            if (_siteInfo != null && _siteInfo.Id > 0)
+            if (currentSiteInfo != null && currentSiteInfo.Id > 0)
             {
-                if (SiteId == 0)
+                if (pageSiteId == 0)
                 {
-                    PageUtils.Redirect(GetRedirectUrl(_siteInfo.Id));
+                    PageUtils.Redirect(GetRedirectUrl(currentSiteInfo.Id));
                     return;
                 }
-
-                var showSite = false;
-
-                var permissionList = new List<string>(AuthRequest.AdminPermissions.PermissionList);
-                
-                if (AuthRequest.AdminPermissions.HasSitePermissions(_siteInfo.Id))
-                {
-                    var websitePermissionList = AuthRequest.AdminPermissions.GetSitePermissions(_siteInfo.Id);
-                    if (websitePermissionList != null)
-                    {
-                        showSite = true;
-                        permissionList.AddRange(websitePermissionList);
-                    }
-                }
-
-                var channelPermissions = AuthRequest.AdminPermissions.GetChannelPermissions(_siteInfo.Id);
-                if (channelPermissions.Count > 0)
-                {
-                    showSite = true;
-                    permissionList.AddRange(channelPermissions);
-                }
-
-                var siteIdHashtable = new Hashtable();
-                if (siteIdList != null)
-                {
-                    foreach (var theSiteId in siteIdList)
-                    {
-                        siteIdHashtable.Add(theSiteId, theSiteId);
-                    }
-                }
-
-                if (!siteIdHashtable.Contains(SiteId))
-                {
-                    showSite = false;
-                }
-
-                if (!showSite)
-                {
-                    PageUtils.RedirectToErrorPage("您没有此发布系统的操作权限！");
-                    return;
-                }
-
-                LtlTopMenus.Text = GetTopMenuSitesHtml() + GetTopMenuLinksHtml() + GetTopMenusHtml();
-
-                PhSite.Visible = true;
-
-                LtlCreateStatus.Text = $@"
-<script type=""text/javascript"">
-function {LayerUtils.OpenPageCreateStatusFuncName}() {{
-    {PageCreateStatus.GetOpenLayerString(_siteInfo.Id)}
-}}
-</script>
-<a href=""javascript:;"" onclick=""{LayerUtils.OpenPageCreateStatusFuncName}()"">
-    <i class=""ion-wand""></i>
-    <span id=""progress"" class=""badge badge-xs badge-pink"">0</span>
-</a>
-";
-
-                NtLeftManagement.TopId = ConfigManager.TopMenu.IdSite;
-                NtLeftManagement.SiteId = _siteInfo.Id;
-                NtLeftManagement.PermissionList = permissionList;
-
-                NtLeftFunctions.TopId = string.Empty;
-                NtLeftFunctions.SiteId = _siteInfo.Id;
-                NtLeftFunctions.PermissionList = permissionList;
-
-                ClientScriptRegisterClientScriptBlock("NodeTreeScript", NodeNaviTreeItem.GetNavigationBarScript());
             }
             else
             {
-                if (IsConsoleAdministrator)
+                if (permissions.IsConsoleAdministrator)
                 {
                     PageUtils.Redirect(PageSiteAdd.GetRedirectUrl());
                     return;
                 }
             }
 
-            if (_siteInfo != null && _siteInfo.Id > 0 && AuthRequest.AdminInfo.SiteId != _siteInfo.Id)
+            if (currentSiteInfo != null && currentSiteInfo.Id > 0)
             {
-                DataProvider.AdministratorDao.UpdateSiteId(AuthRequest.AdminName, _siteInfo.Id);
+                var permissionList = new List<string>(permissions.PermissionList);
+
+                if (permissions.HasSitePermissions(currentSiteInfo.Id))
+                {
+                    var websitePermissionList = permissions.GetSitePermissions(currentSiteInfo.Id);
+                    if (websitePermissionList != null)
+                    {
+                        isLeft = true;
+                        permissionList.AddRange(websitePermissionList);
+                    }
+                }
+
+                var channelPermissions = permissions.GetChannelPermissions(currentSiteInfo.Id);
+                if (channelPermissions.Count > 0)
+                {
+                    isLeft = true;
+                    permissionList.AddRange(channelPermissions);
+                }
+
+                //LtlLeftManagement.Text =
+                //    NavigationTree.BuildNavigationTree(currentSiteInfo.Id, ConfigManager.TopMenu.IdSite,
+                //        permissionList);
+
+                //LtlLeftFunctions.Text = NavigationTree.BuildNavigationTree(currentSiteInfo.Id, string.Empty,
+                //    permissionList);
+
+                if (adminInfo.SiteId != currentSiteInfo.Id)
+                {
+                    DataProvider.AdministratorDao.UpdateSiteId(adminInfo, currentSiteInfo.Id);
+                }
             }
+
+            //LtlTopMenus.Text = isLeft
+            //    ? GetTopMenuSitesHtml(permissions, siteInfoList, rootSiteInfo, addedSiteIdList, currentSiteInfo) +
+            //      GetTopMenuLinksHtml(currentSiteInfo) + GetTopMenusHtml(permissions, pageSiteId)
+            //    : GetTopMenusHtml(permissions, pageSiteId);
         }
 
-        private void AddSite(StringBuilder builder, SiteInfo siteInfo, Dictionary<int, List<SiteInfo>> parentWithChildren, int level)
+        private static void AddSite(StringBuilder builder, SiteInfo siteInfoToAdd, Dictionary<int, List<SiteInfo>> parentWithChildren, int level, List<int> addedSiteIdList, SiteInfo currentSiteInfo)
         {
-            if (_addedSiteIdList.Contains(siteInfo.Id)) return;
+            if (addedSiteIdList.Contains(siteInfoToAdd.Id)) return;
 
-            var loadingUrl = PageUtils.GetLoadingUrl(GetRedirectUrl(siteInfo.Id));
+            var loadingUrl = PageUtils.GetLoadingUrl(GetRedirectUrl(siteInfoToAdd.Id));
 
-            if (parentWithChildren.ContainsKey(siteInfo.Id))
+            if (parentWithChildren.ContainsKey(siteInfoToAdd.Id))
             {
-                var children = parentWithChildren[siteInfo.Id];
+                var children = parentWithChildren[siteInfoToAdd.Id];
 
                 builder.Append($@"
-<li class=""has-submenu {(siteInfo.Id == _siteInfo.Id ? "active" : "")}"">
-    <a href=""{loadingUrl}"">{siteInfo.SiteName}</a>
+<li class=""has-submenu {(siteInfoToAdd.Id == currentSiteInfo.Id ? "active" : "")}"">
+    <a href=""{loadingUrl}"">{siteInfoToAdd.SiteName}</a>
     <ul class=""submenu"">
 ");
 
                 level++;
-                foreach (var subSiteInfo in children)
+
+                var list = children.OrderByDescending(o => o.Taxis).ToList();
+
+                foreach (var subSiteInfo in list)
                 {
-                    AddSite(builder, subSiteInfo, parentWithChildren, level);
+                    AddSite(builder, subSiteInfo, parentWithChildren, level, addedSiteIdList, currentSiteInfo);
                 }
 
                 builder.Append(@"
@@ -220,85 +169,83 @@ function {LayerUtils.OpenPageCreateStatusFuncName}() {{
             else
             {
                 builder.Append(
-                    $@"<li class=""{(siteInfo.Id == _siteInfo.Id ? "active" : "")}""><a href=""{loadingUrl}"">{siteInfo.SiteName}</a></li>");
+                    $@"<li class=""{(siteInfoToAdd.Id == currentSiteInfo.Id ? "active" : "")}""><a href=""{loadingUrl}"">{siteInfoToAdd.SiteName}</a></li>");
             }
 
-            _addedSiteIdList.Add(siteInfo.Id);
+            addedSiteIdList.Add(siteInfoToAdd.Id);
         }
 
-        private string GetTopMenuSitesHtml()
+        private static string GetTopMenuSitesHtml(PermissionsImpl permissions, List<SiteInfo> siteInfoList, SiteInfo rootSiteInfo, List<int> addedSiteIdList, SiteInfo currentSiteInfo)
         {
-            var siteIdList = AuthRequest.AdminPermissions.SiteIdList;
-
-            if (siteIdList.Count == 0)
+            if (siteInfoList.Count == 0)
             {
                 return string.Empty;
             }
 
             //操作者拥有的站点列表
-            var mySystemInfoList = new List<SiteInfo>();
+            var mySiteInfoList = new List<SiteInfo>();
 
             var parentWithChildren = new Dictionary<int, List<SiteInfo>>();
 
-            if (AuthRequest.AdminPermissions.IsSystemAdministrator)
+            if (permissions.IsSystemAdministrator)
             {
-                foreach (var siteId in siteIdList)
+                foreach (var siteInfo in siteInfoList)
                 {
-                    AddToMySystemInfoList(mySystemInfoList, parentWithChildren, siteId);
+                    AddToMySiteInfoList(mySiteInfoList, siteInfo, parentWithChildren);
                 }
             }
             else
             {
-                var permissionSiteIdList = AuthRequest.AdminPermissions.SiteIdList;
-                var permissionChannelIdList = AuthRequest.AdminPermissions.ChannelPermissionChannelIdList;
-                foreach (var siteId in siteIdList)
+                var permissionChannelIdList = permissions.ChannelPermissionChannelIdList;
+                foreach (var siteInfo in siteInfoList)
                 {
-                    var showSite = IsShowSite(siteId, permissionSiteIdList, permissionChannelIdList);
+                    var showSite = IsShowSite(siteInfo.Id, permissionChannelIdList);
                     if (showSite)
                     {
-                        AddToMySystemInfoList(mySystemInfoList, parentWithChildren, siteId);
+                        AddToMySiteInfoList(mySiteInfoList, siteInfo, parentWithChildren);
                     }
                 }
             }
 
             var builder = new StringBuilder();
 
-            if (_hqSiteInfo != null || mySystemInfoList.Count > 0)
+            if (rootSiteInfo != null || mySiteInfoList.Count > 0)
             {
-                if (_hqSiteInfo != null)
+                if (rootSiteInfo != null)
                 {
-                    AddSite(builder, _hqSiteInfo, parentWithChildren, 0);
+                    AddSite(builder, rootSiteInfo, parentWithChildren, 0, addedSiteIdList, currentSiteInfo);
                 }
 
-                if (mySystemInfoList.Count > 0)
+                if (mySiteInfoList.Count > 0)
                 {
                     var count = 0;
-                    foreach (var siteInfo in mySystemInfoList)
+                    var list = mySiteInfoList.OrderByDescending(o => o.Taxis).ToList();
+                    foreach (var siteInfo in list)
                     {
                         if (siteInfo.IsRoot == false)
                         {
                             count++;
-                            AddSite(builder, siteInfo, parentWithChildren, 0);
+                            AddSite(builder, siteInfo, parentWithChildren, 0, addedSiteIdList, currentSiteInfo);
                         }
                         if (count == 13)
                         {
-                            builder.Append(
-                                $@"<li><a href=""javascript:;"" onclick=""{ModalSiteSelect.GetOpenLayerString(SiteId)}"">列出全部站点...</a></li>");
                             break;
                         }
                     }
+                    builder.Append(
+                        $@"<li><a href=""javascript:;"" onclick=""{ModalSiteSelect.GetOpenLayerString(currentSiteInfo.Id)}"">全部站点...</a></li>");
                 }
             }
 
             var clazz = "has-submenu";
             var menuText = "站点管理";
-            if (_siteInfo != null && _siteInfo.Id > 0)
+            if (currentSiteInfo != null && currentSiteInfo.Id > 0)
             {
                 clazz = "has-submenu active";
-                menuText = _siteInfo.SiteName;
-                if (_siteInfo.ParentId > 0)
+                menuText = currentSiteInfo.SiteName;
+                if (currentSiteInfo.ParentId > 0)
                 {
-                    menuText += $" ({SiteManager.GetSiteLevel(_siteInfo.Id) + 1}级)";
+                    menuText += $" ({SiteManager.GetSiteLevel(currentSiteInfo.Id) + 1}级)";
                 }
             }
 
@@ -310,9 +257,9 @@ function {LayerUtils.OpenPageCreateStatusFuncName}() {{
             </li>";
         }
 
-        private string GetTopMenuLinksHtml()
+        private static string GetTopMenuLinksHtml(SiteInfo currentSiteInfo)
         {
-            if (_siteInfo == null || _siteInfo.Id <= 0)
+            if (currentSiteInfo == null || currentSiteInfo.Id <= 0)
             {
                 return string.Empty;
             }
@@ -320,9 +267,9 @@ function {LayerUtils.OpenPageCreateStatusFuncName}() {{
             var builder = new StringBuilder();
 
             builder.Append(
-                    $@"<li><a href=""{PageUtility.GetSiteUrl(_siteInfo, false)}"" target=""_blank"">访问站点</a></li>");
+                    $@"<li><a href=""{PageUtility.GetSiteUrl(currentSiteInfo, false)}"" target=""_blank"">访问站点</a></li>");
             builder.Append(
-                    $@"<li><a href=""{ApiRoutePreview.GetSiteUrl(_siteInfo.Id)}"" target=""_blank"">预览站点</a></li>");
+                    $@"<li><a href=""{ApiRoutePreview.GetSiteUrl(currentSiteInfo.Id)}"" target=""_blank"">预览站点</a></li>");
 
             return $@"<li class=""has-submenu"">
               <a href=""javascript:;"">站点链接</a>
@@ -332,7 +279,7 @@ function {LayerUtils.OpenPageCreateStatusFuncName}() {{
             </li>";
         }
 
-        private string GetTopMenusHtml()
+        private static string GetTopMenusHtml(PermissionsImpl permissions, int siteId)
         {
             var topMenuTabs = TabManager.GetTopMenuTabs();
 
@@ -342,27 +289,27 @@ function {LayerUtils.OpenPageCreateStatusFuncName}() {{
             }
 
             var permissionList = new List<string>();
-            if (AuthRequest.AdminPermissions.HasSitePermissions(SiteId))
+            if (permissions.HasSitePermissions(siteId))
             {
-                var websitePermissionList = AuthRequest.AdminPermissions.GetSitePermissions(SiteId);
+                var websitePermissionList = permissions.GetSitePermissions(siteId);
                 if (websitePermissionList != null)
                 {
                     permissionList.AddRange(websitePermissionList);
                 }
             }
 
-            permissionList.AddRange(AuthRequest.AdminPermissions.PermissionList);
+            permissionList.AddRange(permissions.PermissionList);
 
             var builder = new StringBuilder();
             foreach (var tab in topMenuTabs)
             {
-                if (!IsConsoleAdministrator && !TabManager.IsValid(tab, permissionList)) continue;
+                if (!permissions.IsConsoleAdministrator && !TabManager.IsValid(tab, permissionList)) continue;
 
                 var tabs = TabManager.GetTabList(tab.Id, 0);
                 var tabsBuilder = new StringBuilder();
                 foreach (var parent in tabs)
                 {
-                    if (!IsConsoleAdministrator && !TabManager.IsValid(parent, permissionList)) continue;
+                    if (!permissions.IsConsoleAdministrator && !TabManager.IsValid(parent, permissionList)) continue;
 
                     var hasChildren = parent.Children != null && parent.Children.Length > 0;
 
@@ -412,15 +359,8 @@ function {LayerUtils.OpenPageCreateStatusFuncName}() {{
             return builder.ToString();
         }
 
-        private static bool IsShowSite(int siteId, List<int> permissionSiteIdList, List<int> permissionChannelIdList)
+        private static bool IsShowSite(int siteId, List<int> permissionChannelIdList)
         {
-            foreach (var permissionSiteId in permissionSiteIdList)
-            {
-                if (permissionSiteId == siteId)
-                {
-                    return true;
-                }
-            }
             foreach (var permissionChannelId in permissionChannelIdList)
             {
                 if (ChannelManager.IsAncestorOrSelf(siteId, siteId, permissionChannelId))
@@ -431,26 +371,21 @@ function {LayerUtils.OpenPageCreateStatusFuncName}() {{
             return false;
         }
 
-        private void AddToMySystemInfoList(List<SiteInfo> mySystemInfoList, Dictionary<int, List<SiteInfo>> parentWithChildren, int siteId)
+        private static void AddToMySiteInfoList(List<SiteInfo> mySiteInfoList, SiteInfo mySiteInfo, Dictionary<int, List<SiteInfo>> parentWithChildren)
         {
-            var siteInfo = SiteManager.GetSiteInfo(siteId);
-            if (siteInfo == null) return;
+            if (mySiteInfo == null) return;
 
-            if (siteInfo.IsRoot)
-            {
-                _hqSiteInfo = siteInfo;
-            }
-            else if (siteInfo.ParentId > 0)
+            if (mySiteInfo.ParentId > 0)
             {
                 var children = new List<SiteInfo>();
-                if (parentWithChildren.ContainsKey(siteInfo.ParentId))
+                if (parentWithChildren.ContainsKey(mySiteInfo.ParentId))
                 {
-                    children = parentWithChildren[siteInfo.ParentId];
+                    children = parentWithChildren[mySiteInfo.ParentId];
                 }
-                children.Add(siteInfo);
-                parentWithChildren[siteInfo.ParentId] = children;
+                children.Add(mySiteInfo);
+                parentWithChildren[mySiteInfo.ParentId] = children;
             }
-            mySystemInfoList.Add(siteInfo);
+            mySiteInfoList.Add(mySiteInfo);
         }
     }
 }

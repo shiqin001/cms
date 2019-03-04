@@ -1,25 +1,35 @@
 ﻿using System.Collections.Generic;
 using System.Text;
+using SiteServer.CMS.Caches.Stl;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Database.Models;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Utility;
-using SiteServer.CMS.StlParser.Cache;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "标签", Description = "通过 stl:tags 标签在模板中显示内容标签")]
+    [StlElement(Title = "标签", Description = "通过 stl:tags 标签在模板中显示内容标签")]
     public class StlTags
 	{
         private StlTags() { }
         public const string ElementName = "stl:tags";
 
-        private static readonly Attr TagLevel = new Attr("tagLevel", "标签级别");
-        private static readonly Attr TotalNum = new Attr("totalNum", "显示标签数目");
-        private static readonly Attr IsOrderByCount = new Attr("isOrderByCount", "是否按引用次数排序");
-        private static readonly Attr Theme = new Attr("theme", "主题样式");
-        private static readonly Attr Context = new Attr("context", "所处上下文");
+        [StlAttribute(Title = "标签级别")]
+        private const string TagLevel = nameof(TagLevel);
+
+        [StlAttribute(Title = "显示标签数目")]
+        private const string TotalNum = nameof(TotalNum);
+
+        [StlAttribute(Title = "是否按引用次数排序")]
+        private const string IsOrderByCount = nameof(IsOrderByCount);
+
+        [StlAttribute(Title = "主题样式")]
+        private const string Theme = nameof(Theme);
+
+        [StlAttribute(Title = "所处上下文")]
+        private const string Context = nameof(Context);
+
 
         public static string Parse(PageInfo pageInfo, ContextInfo contextInfo)
 		{
@@ -27,47 +37,47 @@ namespace SiteServer.CMS.StlParser.StlElement
             var totalNum = 0;
             var isOrderByCount = false;
             var theme = "default";
-            var isInnerXml = !string.IsNullOrEmpty(contextInfo.InnerXml);
+            var isInnerHtml = !string.IsNullOrEmpty(contextInfo.InnerHtml);
 
-		    foreach (var name in contextInfo.Attributes.Keys)
+		    foreach (var name in contextInfo.Attributes.AllKeys)
 		    {
 		        var value = contextInfo.Attributes[name];
 
-                if (StringUtils.EqualsIgnoreCase(name, TagLevel.Name))
+                if (StringUtils.EqualsIgnoreCase(name, TagLevel))
                 {
                     tagLevel = TranslateUtils.ToInt(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, TotalNum.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, TotalNum))
                 {
                     totalNum = TranslateUtils.ToInt(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsOrderByCount.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, IsOrderByCount))
                 {
                     isOrderByCount = TranslateUtils.ToBool(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Theme.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Theme))
                 {
                     theme = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Context.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Context))
                 {
                     contextInfo.ContextType = EContextTypeUtils.GetEnumType(value);
                 }
             }
 
-            return ParseImpl(isInnerXml, pageInfo, contextInfo, tagLevel, totalNum, isOrderByCount, theme);
+            return ParseImpl(isInnerHtml, pageInfo, contextInfo, tagLevel, totalNum, isOrderByCount, theme);
 		}
 
-        private static string ParseImpl(bool isInnerXml, PageInfo pageInfo, ContextInfo contextInfo, int tagLevel, int totalNum, bool isOrderByCount, string theme)
+        private static string ParseImpl(bool isInnerHtml, PageInfo pageInfo, ContextInfo contextInfo, int tagLevel, int totalNum, bool isOrderByCount, string theme)
         {
             var innerHtml = string.Empty;
-            if (isInnerXml)
+            if (isInnerHtml)
             {
-                innerHtml = StringUtils.StripTags(contextInfo.StlElement, ElementName);
+                innerHtml = StringUtils.StripTags(contextInfo.OuterHtml, ElementName);
             }
 
             var tagsBuilder = new StringBuilder();
-            if (!isInnerXml)
+            if (!isInnerHtml)
             {
                 tagsBuilder.Append($@"
 <link rel=""stylesheet"" href=""{SiteFilesAssets.Tags.GetStyleUrl(pageInfo.ApiUrl, theme)}"" type=""text/css"" />
@@ -85,7 +95,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                 contentId = contextInfo.ContentId;
             }
 
-            var tagInfoList = Tag.GetTagInfoList(pageInfo.SiteId, contentId, isOrderByCount, totalNum);
+            var tagInfoList = StlTagCache.GetTagInfoList(pageInfo.SiteId, contentId, isOrderByCount, totalNum);
             tagInfoList = TagUtils.GetTagInfoList(tagInfoList, totalNum, tagLevel);
             if (contextInfo.ContextType == EContextType.Content && contextInfo.ContentInfo != null)
             {
@@ -107,7 +117,13 @@ namespace SiteServer.CMS.StlParser.StlElement
                         }
                         if (!isAdd)
                         {
-                            var tagInfo = new TagInfo(0, pageInfo.SiteId, contentId.ToString(), tagName, 1);
+                            var tagInfo = new TagInfo
+                            {
+                                SiteId = pageInfo.SiteId,
+                                ContentIdCollection = contentId.ToString(),
+                                Tag = tagName,
+                                UseNum = 1
+                            };
                             tagInfoList2.Add(tagInfo);
                         }
                     }
@@ -117,7 +133,7 @@ namespace SiteServer.CMS.StlParser.StlElement
 
             foreach (var tagInfo in tagInfoList)
             {
-                if (isInnerXml)
+                if (isInnerHtml)
                 {
                     var tagHtml = innerHtml;
                     tagHtml = StringUtils.ReplaceIgnoreCase(tagHtml, "{Tag.Name}", tagInfo.Tag);
@@ -137,7 +153,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                 }
             }
 
-            if (!isInnerXml)
+            if (!isInnerHtml)
             {
                 tagsBuilder.Append("</ul>");
             }

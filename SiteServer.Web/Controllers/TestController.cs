@@ -1,56 +1,78 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Net;
-using System.Net.Http;
-using System.Text;
 using System.Web.Http;
-using SiteServer.CMS.Plugin;
+using SiteServer.CMS.Caches;
 
 namespace SiteServer.API.Controllers
 {
-    [RoutePrefix("api")]
+    [RoutePrefix("test")]
     public class TestController : ApiController
     {
-        [HttpGet, Route("test")]
-        public IHttpActionResult Get()
+        private const string Route = "";
+
+        [HttpGet, Route(Route)]
+        public IHttpActionResult GetAdminOnly()
         {
-            var pluginIds = new List<string>();
-            foreach (var pluginInfo in PluginManager.PluginInfoListRunnable)
+            try
             {
-                if (!pluginInfo.IsDisabled)
+                var rest = new Rest(Request);
+
+                if (!rest.IsAdminLoggin ||
+                    !rest.AdminPermissionsImpl.HasSystemPermissions(ConfigManager.SettingsPermissions.Admin))
                 {
-                    pluginIds.Add(pluginInfo.Id);
+                    return Unauthorized();
                 }
+
+                return Ok(new
+                {
+                    Value = true
+                });
             }
-            return Ok(new
+            catch (Exception ex)
             {
-                DateTime = DateTime.Now,
-                Plugins = pluginIds
-            });
+                return InternalServerError(ex);
+            }
         }
 
-        [HttpGet, Route("test/any")]
-        public HttpResponseMessage GetAny()
-        {
-            //return Content(HttpStatusCode.Created, new
-            //{
-            //    IsOk = true
-            //});
+        //[HttpGet]
+        //public IHttpActionResult Get()
+        //{
+        //    var pluginIds = new List<string>();
+        //    foreach (var pluginInfo in PluginManager.PluginInfoListRunnable)
+        //    {
+        //        if (!pluginInfo.IsDisabled)
+        //        {
+        //            pluginIds.Add(pluginInfo.Id);
+        //        }
+        //    }
+        //    return Ok(new
+        //    {
+        //        DateTime = DateTime.Now,
+        //        Plugins = pluginIds
+        //    });
+        //}
 
-            //var content = ;
+        //[HttpGet, Route("any")]
+        //public HttpResponseMessage GetAny()
+        //{
+        //    //return Content(HttpStatusCode.Created, new
+        //    //{
+        //    //    IsOk = true
+        //    //});
 
-            var response = Request.CreateResponse(HttpStatusCode.NotFound);
+        //    //var content = ;
 
-            response.Content = new StringContent("yes, yes", Encoding.UTF8);
+        //    var response = Request.CreateResponse(HttpStatusCode.NotFound);
 
-            return response;
-        }
+        //    response.Content = new StringContent("yes, yes", Encoding.UTF8);
 
-        [HttpGet, Route("test/string")]
-        public IHttpActionResult GetString()
-        {
-            return Ok("Hello");
-        }
+        //    return response;
+        //}
+
+        //[HttpGet, Route("string")]
+        //public IHttpActionResult GetString()
+        //{
+        //    return Ok("Hello");
+        //}
 
         //private readonly HttpClient _httpClient = new HttpClient();
 
@@ -58,7 +80,7 @@ namespace SiteServer.API.Controllers
         //public async Task<IHttpActionResult> GetDotNetCountAsync()
         //{
         //    // Suspends GetDotNetCountAsync() to allow the caller (the web server)
-        //    // to accept another request, rather than blocking on this one.
+        //    // to accept another rest, rather than blocking on this one.
         //    var html = await _httpClient.GetStringAsync("http://dotnetfoundation.org");
 
         //    return Ok(new

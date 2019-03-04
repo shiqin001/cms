@@ -3,8 +3,8 @@ using System.Collections.Specialized;
 using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
+using SiteServer.CMS.Database.Attributes;
+using SiteServer.CMS.Database.Core;
 
 namespace SiteServer.BackgroundPages.Cms
 {
@@ -39,7 +39,7 @@ namespace SiteServer.BackgroundPages.Cms
             {
                 TbTags.Text = _tagName;
 
-                var count = DataProvider.TagDao.GetTagCount(_tagName, SiteId);
+                var count = DataProvider.Tag.GetTagCount(_tagName, SiteId);
 
                 InfoMessage($@"标签“<strong>{_tagName}</strong>”被使用 {count} 次，编辑此标签将更新所有使用此标签的内容。");
             }
@@ -56,42 +56,46 @@ namespace SiteServer.BackgroundPages.Cms
                     if (!string.Equals(_tagName, TbTags.Text))
                     {
                         var tagCollection = TagUtils.ParseTagsString(TbTags.Text);
-                        var contentIdList = DataProvider.TagDao.GetContentIdListByTag(_tagName, SiteId);
+                        var contentIdList = DataProvider.Tag.GetContentIdListByTag(_tagName, SiteId);
                         if (contentIdList.Count > 0)
                         {
-                            foreach (int contentId in contentIdList)
+                            foreach (var contentId in contentIdList)
                             {
                                 if (!tagCollection.Contains(_tagName))//删除
                                 {
-                                    var tagInfo = DataProvider.TagDao.GetTagInfo(SiteId, _tagName);
+                                    var tagInfo = DataProvider.Tag.GetTagInfo(SiteId, _tagName);
                                     if (tagInfo != null)
                                     {
                                         var idArrayList = TranslateUtils.StringCollectionToIntList(tagInfo.ContentIdCollection);
                                         idArrayList.Remove(contentId);
                                         tagInfo.ContentIdCollection = TranslateUtils.ObjectCollectionToString(idArrayList);
                                         tagInfo.UseNum = idArrayList.Count;
-                                        DataProvider.TagDao.Update(tagInfo);
+                                        DataProvider.Tag.Update(tagInfo);
                                     }
                                 }
 
                                 TagUtils.AddTags(tagCollection, SiteId, contentId);
 
-                                var contentTags = DataProvider.ContentDao.GetValue(SiteInfo.TableName, contentId, ContentAttribute.Tags);
-                                var contentTagArrayList = TranslateUtils.StringCollectionToStringList(contentTags);
-                                contentTagArrayList.Remove(_tagName);
-                                foreach (var theTag in tagCollection)
+                                var tuple = DataProvider.ContentRepository.GetValue(SiteInfo.TableName, contentId, ContentAttribute.Tags);
+
+                                if (tuple != null)
                                 {
-                                    if (!contentTagArrayList.Contains(theTag))
+                                    var contentTagList = TranslateUtils.StringCollectionToStringList(tuple.Item2);
+                                    contentTagList.Remove(_tagName);
+                                    foreach (var theTag in tagCollection)
                                     {
-                                        contentTagArrayList.Add(theTag);
+                                        if (!contentTagList.Contains(theTag))
+                                        {
+                                            contentTagList.Add(theTag);
+                                        }
                                     }
+                                    DataProvider.ContentRepository.Update(SiteInfo.TableName, tuple.Item1, contentId, ContentAttribute.Tags, TranslateUtils.ObjectCollectionToString(contentTagList));
                                 }
-                                DataProvider.ContentDao.SetValue(SiteInfo.TableName, contentId, ContentAttribute.Tags, TranslateUtils.ObjectCollectionToString(contentTagArrayList));
                             }
                         }
                         else
                         {
-                            DataProvider.TagDao.DeleteTag(_tagName, SiteId);
+                            DataProvider.Tag.DeleteTag(_tagName, SiteId);
                         }
                     }
 

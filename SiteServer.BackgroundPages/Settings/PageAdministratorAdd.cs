@@ -2,6 +2,7 @@
 using System.Collections.Specialized;
 using System.Web.UI.WebControls;
 using SiteServer.CMS.Core;
+using SiteServer.CMS.DataCache;
 using SiteServer.CMS.Model;
 using SiteServer.Utils;
 
@@ -53,7 +54,7 @@ namespace SiteServer.BackgroundPages.Settings
 
             if (Page.IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.Admin);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.Admin);
 
             LtlPageTitle.Text = string.IsNullOrEmpty(_userName) ? "添加管理员" : "编辑管理员";
 
@@ -89,7 +90,7 @@ namespace SiteServer.BackgroundPages.Settings
 
             if (!string.IsNullOrEmpty(_userName))
             {
-                var adminInfo = DataProvider.AdministratorDao.GetByUserName(_userName);
+                var adminInfo = AdminManager.GetAdminInfoByUserName(_userName);
                 if (adminInfo != null)
                 {
                     ControlUtils.SelectSingleItem(DdlDepartmentId, adminInfo.DepartmentId.ToString());
@@ -136,8 +137,7 @@ namespace SiteServer.BackgroundPages.Settings
                     return;
                 }
 
-                string errorMessage;
-                if (!AdminManager.CreateAdministrator(adminInfo, out errorMessage))
+                if (DataProvider.AdministratorDao.Insert(adminInfo, out var errorMessage) == 0)
                 {
                     FailMessage($"管理员添加失败：{errorMessage}");
                     return;   
@@ -149,7 +149,7 @@ namespace SiteServer.BackgroundPages.Settings
             }
             else
             {
-                var adminInfo = DataProvider.AdministratorDao.GetByUserName(_userName);
+                var adminInfo = AdminManager.GetAdminInfoByUserName(_userName);
 
                 if (adminInfo.Email != TbEmail.Text && !string.IsNullOrEmpty(DataProvider.AdministratorDao.GetUserNameByEmail(TbEmail.Text)))
                 {
@@ -169,11 +169,18 @@ namespace SiteServer.BackgroundPages.Settings
                 adminInfo.DepartmentId = TranslateUtils.ToInt(DdlDepartmentId.SelectedValue);
                 adminInfo.AreaId = TranslateUtils.ToInt(DdlAreaId.SelectedValue);
 
-                DataProvider.AdministratorDao.Update(adminInfo);
+                var updated = DataProvider.AdministratorDao.Update(adminInfo, out var errorMessage);
 
-                AuthRequest.AddAdminLog("修改管理员属性", $"管理员:{TbUserName.Text.Trim()}");
-                SuccessMessage("管理员设置成功！");
-                AddWaitAndRedirectScript(PageAdministrator.GetRedirectUrl());
+                if (updated)
+                {
+                    AuthRequest.AddAdminLog("修改管理员属性", $"管理员:{TbUserName.Text.Trim()}");
+                    SuccessMessage("管理员设置成功！");
+                    AddWaitAndRedirectScript(PageAdministrator.GetRedirectUrl());
+                }
+                else
+                {
+                    FailMessage(errorMessage);
+                }
             }
         }
 

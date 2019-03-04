@@ -2,15 +2,17 @@
 using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.BackgroundPages.Controls;
-using SiteServer.BackgroundPages.Core;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Database.Attributes;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
 using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.BackgroundPages.Settings
 {
     public class PageUser : BasePage
     {
+        public DropDownList DdlGroupId;
         public DropDownList DdlPageNum;
         public DropDownList DdlLoginCount;
 
@@ -22,6 +24,7 @@ namespace SiteServer.BackgroundPages.Settings
         public Repeater RptContents;
         public SqlPager SpContents;
 
+        public Button BtnCheck;
         public Button BtnAdd;
         public Button BtnLock;
         public Button BtnUnLock;
@@ -35,28 +38,26 @@ namespace SiteServer.BackgroundPages.Settings
             return PageUtils.GetSettingsUrl(nameof(PageUser), null);
         }
 
-        public string GetDateTime(DateTime datetime)
-        {
-            var retval = string.Empty;
-            if (datetime > DateUtils.SqlMinValue)
-            {
-                retval = DateUtils.GetDateString(datetime);
-            }
-            return retval;
-        }
-
         public void Page_Load(object sender, EventArgs e)
         {
             if (IsForbidden) return;
 
-            if (AuthRequest.IsQueryExists("Delete"))
+            if (AuthRequest.IsQueryExists("Check"))
+            {
+                var userIdList = TranslateUtils.StringCollectionToIntList(AuthRequest.GetQueryString("UserIDCollection"));
+                DataProvider.User.Check(userIdList);
+
+                SuccessCheckMessage();
+            }
+            else if (AuthRequest.IsQueryExists("DeleteById"))
             {
                 var userIdList = TranslateUtils.StringCollectionToIntList(AuthRequest.GetQueryString("UserIDCollection"));
                 try
                 {
                     foreach (var userId in userIdList)
                     {
-                        DataProvider.UserDao.Delete(userId);
+                        var userInfo = UserManager.GetUserInfoByUserId(userId);
+                        DataProvider.User.Delete(userInfo);
                     }
 
                     AuthRequest.AddAdminLog("删除用户", string.Empty);
@@ -73,7 +74,7 @@ namespace SiteServer.BackgroundPages.Settings
                 var userIdList = TranslateUtils.StringCollectionToIntList(AuthRequest.GetQueryString("UserIDCollection"));
                 try
                 {
-                    DataProvider.UserDao.Lock(userIdList);
+                    DataProvider.User.Lock(userIdList);
 
                     AuthRequest.AddAdminLog("锁定用户", string.Empty);
 
@@ -89,7 +90,7 @@ namespace SiteServer.BackgroundPages.Settings
                 var userIdList = TranslateUtils.StringCollectionToIntList(AuthRequest.GetQueryString("UserIDCollection"));
                 try
                 {
-                    DataProvider.UserDao.UnLock(userIdList);
+                    DataProvider.User.UnLock(userIdList);
 
                     AuthRequest.AddAdminLog("解除锁定用户", string.Empty);
 
@@ -107,59 +108,73 @@ namespace SiteServer.BackgroundPages.Settings
             {
                 SpContents.ItemsPerPage = TranslateUtils.ToInt(DdlPageNum.SelectedValue) == 0 ? 25 : TranslateUtils.ToInt(DdlPageNum.SelectedValue);
 
-                SpContents.SelectCommand = DataProvider.UserDao.GetSelectCommand(true);
+                SpContents.SelectCommand = DataProvider.User.GetSelectCommand();
             }
             else
             {
                 SpContents.ItemsPerPage = AuthRequest.GetQueryInt("PageNum") == 0 ? StringUtils.Constants.PageSize : AuthRequest.GetQueryInt("PageNum");
-                SpContents.SelectCommand = DataProvider.UserDao.GetSelectCommand(AuthRequest.GetQueryString("Keyword"), AuthRequest.GetQueryInt("CreationDate"), AuthRequest.GetQueryInt("LastActivityDate"), true, AuthRequest.GetQueryInt("LoginCount"), AuthRequest.GetQueryString("SearchType"));
+
+                SpContents.SelectCommand = DataProvider.User.GetSelectCommand(AuthRequest.GetQueryInt("groupId"), AuthRequest.GetQueryString("keyword"), AuthRequest.GetQueryInt("creationDate"), AuthRequest.GetQueryInt("lastActivityDate"), AuthRequest.GetQueryInt("loginCount"), AuthRequest.GetQueryString("searchType"));
             }
 
             RptContents.ItemDataBound += rptContents_ItemDataBound;
-            SpContents.SortField = DataProvider.UserDao.GetSortFieldName();
-            SpContents.SortMode = SortMode.DESC;
+            SpContents.OrderByString = "ORDER BY IsChecked, Id DESC";
 
-            _lockType = EUserLockTypeUtils.GetEnumType(ConfigManager.SystemConfigInfo.UserLockLoginType);
+            _lockType = EUserLockTypeUtils.GetEnumType(ConfigManager.Instance.UserLockLoginType);
 
             if (IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.User);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.User);
 
+            DdlGroupId.Items.Add(new ListItem("<全部用户组>", "-1"));
+            foreach (var groupInfo in UserGroupManager.GetUserGroupInfoList())
+            {
+                DdlGroupId.Items.Add(new ListItem(groupInfo.GroupName, groupInfo.Id.ToString()));
+            }
+            
             //添加隐藏属性
-            DdlSearchType.Items.Add(new ListItem("用户ID", "userID"));
-            DdlSearchType.Items.Add(new ListItem("用户名", "userName"));
-            DdlSearchType.Items.Add(new ListItem("邮箱", "email"));
-            DdlSearchType.Items.Add(new ListItem("手机", "mobile"));
+            DdlSearchType.Items.Add(new ListItem("用户Id", UserAttribute.Id));
+            DdlSearchType.Items.Add(new ListItem("用户名", UserAttribute.UserName));
+            DdlSearchType.Items.Add(new ListItem("邮箱", UserAttribute.Email));
+            DdlSearchType.Items.Add(new ListItem("手机", UserAttribute.Mobile));
 
             //默认选择用户名
-            DdlSearchType.SelectedValue = "userName";
+            DdlSearchType.SelectedValue = UserAttribute.UserName;
 
-            if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("SearchType")))
+            if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("groupId")))
             {
-                ControlUtils.SelectSingleItem(DdlSearchType, AuthRequest.GetQueryString("SearchType"));
+                ControlUtils.SelectSingleItem(DdlGroupId, AuthRequest.GetQueryString("groupId"));
             }
-            if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("PageNum")))
+            if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("searchType")))
             {
-                ControlUtils.SelectSingleItem(DdlPageNum, AuthRequest.GetQueryString("PageNum"));
+                ControlUtils.SelectSingleItem(DdlSearchType, AuthRequest.GetQueryString("searchType"));
             }
-            if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("LoginCount")))
+            if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("pageNum")))
             {
-                ControlUtils.SelectSingleItem(DdlLoginCount, AuthRequest.GetQueryString("LoginCount"));
+                ControlUtils.SelectSingleItem(DdlPageNum, AuthRequest.GetQueryString("pageNum"));
             }
-            if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("Keyword")))
+            if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("loginCount")))
             {
-                TbKeyword.Text = AuthRequest.GetQueryString("Keyword");
+                ControlUtils.SelectSingleItem(DdlLoginCount, AuthRequest.GetQueryString("loginCount"));
             }
-            if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("CreationDate")))
+            if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("keyword")))
             {
-                ControlUtils.SelectSingleItem(DdlCreationDate, AuthRequest.GetQueryString("CreationDate"));
+                TbKeyword.Text = AuthRequest.GetQueryString("keyword");
             }
-            if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("LastActivityDate")))
+            if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("creationDate")))
             {
-                ControlUtils.SelectSingleItem(DdlLastActivityDate, AuthRequest.GetQueryString("LastActivityDate"));
+                ControlUtils.SelectSingleItem(DdlCreationDate, AuthRequest.GetQueryString("creationDate"));
+            }
+            if (!string.IsNullOrEmpty(AuthRequest.GetQueryString("lastActivityDate")))
+            {
+                ControlUtils.SelectSingleItem(DdlLastActivityDate, AuthRequest.GetQueryString("lastActivityDate"));
             }
 
             var backgroundUrl = GetRedirectUrl();
+
+            BtnCheck.Attributes.Add("onclick",
+                PageUtils.GetRedirectStringWithCheckBoxValueAndAlert($"{backgroundUrl}?Check=True", "UserIDCollection",
+                    "UserIDCollection", "请选择需要审核的会员！", "此操作将审核通过所选会员，确认吗？"));
 
             BtnAdd.Attributes.Add("onclick",
                 $"location.href='{PageUserAdd.GetRedirectUrlToAdd(PageUrl)}';return false;");
@@ -171,72 +186,81 @@ namespace SiteServer.BackgroundPages.Settings
                 $"{backgroundUrl}?UnLock=True", "UserIDCollection", "UserIDCollection", "请选择需要解除锁定的会员！", "此操作将解除锁定所选会员，确认吗？"));
 
             BtnDelete.Attributes.Add("onclick", PageUtils.GetRedirectStringWithCheckBoxValueAndAlert(
-                $"{backgroundUrl}?Delete=True", "UserIDCollection", "UserIDCollection", "请选择需要删除的会员！", "此操作将删除所选会员，确认吗？"));
+                $"{backgroundUrl}?DeleteById=True", "UserIDCollection", "UserIDCollection", "请选择需要删除的会员！", "此操作将删除所选会员，确认吗？"));
 
             BtnExport.Attributes.Add("onclick", ModalUserExport.GetOpenWindowString());
 
             SpContents.DataBind();
         }
 
-        public void rptContents_ItemDataBound(object sender, RepeaterItemEventArgs e)
+        private void rptContents_ItemDataBound(object sender, RepeaterItemEventArgs e)
         {
             if (e.Item.ItemType != ListItemType.Item && e.Item.ItemType != ListItemType.AlternatingItem) return;
 
-            var userInfo = new UserInfo(e.Item.DataItem);
+            if (e.Item.DataItem == null) return;
+
+            var id = SqlUtils.EvalInt(e.Item.DataItem, nameof(UserInfo.Id));
+            var userName = SqlUtils.EvalString(e.Item.DataItem, nameof(UserInfo.UserName));
+            var createDate = SqlUtils.EvalDateTime(e.Item.DataItem, nameof(UserInfo.CreateDate));
+            var lastActivityDate = SqlUtils.EvalDateTime(e.Item.DataItem, nameof(UserInfo.LastActivityDate));
+            var countOfLogin = SqlUtils.EvalInt(e.Item.DataItem, nameof(UserInfo.CountOfLogin));
+            var countOfFailedLogin = SqlUtils.EvalInt(e.Item.DataItem, nameof(UserInfo.CountOfFailedLogin));
+            var groupId = SqlUtils.EvalInt(e.Item.DataItem, nameof(UserInfo.GroupId));
+            var isChecked = SqlUtils.EvalBool(e.Item.DataItem, UserAttribute.IsChecked);
+            var isLockedOut = SqlUtils.EvalBool(e.Item.DataItem, UserAttribute.IsLockedOut);
+            var displayName = SqlUtils.EvalString(e.Item.DataItem, nameof(UserInfo.DisplayName));
+            var email = SqlUtils.EvalString(e.Item.DataItem, nameof(UserInfo.Email));
+            var mobile = SqlUtils.EvalString(e.Item.DataItem, nameof(UserInfo.Mobile));
 
             var ltlUserName = (Literal)e.Item.FindControl("ltlUserName");
-            var ltlDisplayName = (Literal)e.Item.FindControl("ltlDisplayName");
             var ltlEmail = (Literal)e.Item.FindControl("ltlEmail");
             var ltlMobile = (Literal)e.Item.FindControl("ltlMobile");
-            var ltlLastActivityDate = (Literal)e.Item.FindControl("ltlLastActivityDate");
+            var ltlGroupName = (Literal)e.Item.FindControl("ltlGroupName");
             var ltlLoginCount = (Literal)e.Item.FindControl("ltlLoginCount");
             var ltlCreationDate = (Literal)e.Item.FindControl("ltlCreationDate");
-            var ltlWritingCount = (Literal)e.Item.FindControl("ltlWritingCount");
             var ltlSelect = (Literal)e.Item.FindControl("ltlSelect");
             var hlChangePassword = (HyperLink)e.Item.FindControl("hlChangePassword");
             var hlEditLink = (HyperLink)e.Item.FindControl("hlEditLink");
 
-            ltlUserName.Text = GetUserNameHtml(userInfo);
-            ltlDisplayName.Text = userInfo.DisplayName;
-            ltlEmail.Text = userInfo.Email;
-            ltlMobile.Text = userInfo.Mobile;
-            ltlLastActivityDate.Text = DateUtils.GetDateAndTimeString(userInfo.LastActivityDate);
-            ltlLoginCount.Text = userInfo.CountOfLogin.ToString();
-            ltlCreationDate.Text = DateUtils.GetDateAndTimeString(userInfo.CreateDate);
-
-            hlEditLink.NavigateUrl = PageUserAdd.GetRedirectUrlToEdit(userInfo.Id, GetRedirectUrl());
-            hlChangePassword.Attributes.Add("onclick", ModalUserPassword.GetOpenWindowString(userInfo.UserName));
-            ltlSelect.Text = $@"<input type=""checkbox"" name=""UserIDCollection"" value=""{userInfo.Id}"" />";
-
-            ltlWritingCount.Text = userInfo.CountOfWriting.ToString();
-        }
-
-        private string GetUserNameHtml(UserInfo userInfo)
-        {
-            var showPopWinString = ModalUserView.GetOpenWindowString(userInfo.UserName);
-            var state = string.Empty;
-            if (userInfo.IsLockedOut)
+            var showPopWinString = ModalUserView.GetOpenWindowString(userName);
+            var state = isChecked ? string.Empty : @"<span style=""color:red;"">[待审核]</span>";
+            if (isLockedOut)
             {
-                state = @"<span style=""color:red;"">[已被锁定]</span>";
+                state += @"<span style=""color:red;"">[已锁定]</span>";
             }
-            else if (ConfigManager.SystemConfigInfo.IsUserLockLogin &&
-                       ConfigManager.SystemConfigInfo.UserLockLoginCount <= userInfo.CountOfFailedLogin)
+            else if (ConfigManager.Instance.IsUserLockLogin &&
+                     ConfigManager.Instance.UserLockLoginCount <= countOfFailedLogin)
             {
                 if (_lockType == EUserLockType.Forever)
                 {
-                    state = @"<span style=""color:red;"">[已被锁定]</span>";
+                    state += @"<span style=""color:red;"">[已锁定]</span>";
                 }
                 else
                 {
-                    var ts = new TimeSpan(DateTime.Now.Ticks - userInfo.LastActivityDate.Ticks);
-                    var hours = Convert.ToInt32(ConfigManager.SystemConfigInfo.UserLockLoginHours - ts.TotalHours);
+                    var ts = new TimeSpan(DateTime.Now.Ticks - lastActivityDate.Ticks);
+                    var hours = Convert.ToInt32(ConfigManager.Instance.UserLockLoginHours - ts.TotalHours);
                     if (hours > 0)
                     {
-                        state = $@"<span style=""color:red;"">[错误登录次数过多，已被锁定{hours}小时]</span>";
+                        state += $@"<span style=""color:red;"">[已锁定{hours}小时]</span>";
                     }
                 }
             }
-            return $@"<a href=""javascript:;"" onclick=""{showPopWinString}"">{userInfo.UserName}</a> {state}";
+
+            ltlUserName.Text = $@"<a href=""javascript:;"" onclick=""{showPopWinString}"">{userName}</a> {state}";
+
+            if (!string.IsNullOrEmpty(displayName))
+            {
+                ltlUserName.Text += $"({displayName})";
+            }
+            ltlEmail.Text = email;
+            ltlMobile.Text = mobile;
+            ltlGroupName.Text = UserGroupManager.GetUserGroupInfo(groupId).GroupName;
+            ltlLoginCount.Text = countOfLogin.ToString();
+            ltlCreationDate.Text = DateUtils.GetDateAndTimeString(createDate);
+
+            hlEditLink.NavigateUrl = PageUserAdd.GetRedirectUrlToEdit(id, GetRedirectUrl());
+            hlChangePassword.Attributes.Add("onclick", ModalUserPassword.GetOpenWindowString(userName));
+            ltlSelect.Text = $@"<input type=""checkbox"" name=""UserIDCollection"" value=""{id}"" />";
         }
 
         public void Search_OnClick(object sender, EventArgs e)
@@ -252,7 +276,7 @@ namespace SiteServer.BackgroundPages.Settings
                 if (string.IsNullOrEmpty(_pageUrl))
                 {
                     _pageUrl =
-                        $"{GetRedirectUrl()}?PageNum={DdlPageNum.SelectedValue}&Keyword={TbKeyword.Text}&CreationDate={DdlCreationDate.SelectedValue}&LastActivityDate={DdlLastActivityDate.SelectedValue}&loginCount={DdlLoginCount.SelectedValue}&SearchType={DdlSearchType.SelectedValue}";
+                        $"{GetRedirectUrl()}?groupId={DdlGroupId.SelectedValue}&pageNum={DdlPageNum.SelectedValue}&keyword={TbKeyword.Text}&creationDate={DdlCreationDate.SelectedValue}&lastActivityDate={DdlLastActivityDate.SelectedValue}&loginCount={DdlLoginCount.SelectedValue}&searchType={DdlSearchType.SelectedValue}";
                 }
                 return _pageUrl;
             }

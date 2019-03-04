@@ -10,6 +10,25 @@ namespace SiteServer.Utils
 {	
 	public static class FileUtils
 	{
+	    public static string TryReadText(string filePath)
+	    {
+	        var text = string.Empty;
+
+	        try
+	        {
+	            if (IsFileExists(filePath))
+	            {
+	                text = ReadText(filePath, Encoding.UTF8);
+	            }
+	        }
+	        catch
+	        {
+	            // ignored
+	        }
+
+	        return text;
+	    }
+
         public static string ReadText(string filePath, ECharset charset)
 		{
 			var sr = new StreamReader(filePath, ECharsetUtils.GetEncoding(charset));
@@ -17,6 +36,11 @@ namespace SiteServer.Utils
 			sr.Close();
 			return text;
 		}
+
+	    public static string ReadText(string filePath)
+	    {
+	        return ReadText(filePath, Encoding.UTF8);
+	    }
 
         public static string ReadText(string filePath, Encoding encoding)
         {
@@ -26,11 +50,19 @@ namespace SiteServer.Utils
             return text;
         }
 
-        public static async Task WriteTextAsync(string filePath, Encoding encoding, string content)
+	    public static async Task<string> ReadTextAsync(string filePath, Encoding encoding)
+	    {
+	        var sr = new StreamReader(filePath, encoding);
+	        var text = await sr.ReadToEndAsync();
+	        sr.Close();
+	        return text;
+	    }
+
+        public static async Task WriteTextAsync(string filePath, string content)
         {
             DirectoryUtils.CreateDirectoryIfNotExists(filePath);
 
-            byte[] encodedText = encoding.GetBytes(content);
+            byte[] encodedText = Encoding.UTF8.GetBytes(content);
 
             using (FileStream sourceStream = new FileStream(filePath,
                 FileMode.Create, FileAccess.ReadWrite, FileShare.None, bufferSize: 4096, useAsync: true))
@@ -44,7 +76,12 @@ namespace SiteServer.Utils
             WriteText(filePath, ECharsetUtils.GetEncoding(charset), content);
         }
 
-        public static void WriteText(string filePath, Encoding encoding, string content)
+	    public static void WriteText(string filePath, string content)
+	    {
+	        WriteText(filePath, Encoding.UTF8, content);
+	    }
+
+	    public static void WriteText(string filePath, Encoding encoding, string content)
         {
             DirectoryUtils.CreateDirectoryIfNotExists(filePath);
 
@@ -57,26 +94,47 @@ namespace SiteServer.Utils
 
                 file.Close();
             }
-
-            //         var sw = new StreamWriter(filePath, false, ECharsetUtils.GetEncoding(charset));
-            //sw.Write(content);
-            //sw.Flush();
-            //sw.Close();
         }
+
+	    public static void AppendText(string filePath, string content)
+	    {
+	        AppendText(filePath, Encoding.UTF8, content);
+	    }
 
         public static void AppendText(string filePath, ECharset charset, string content)
         {
-            DirectoryUtils.CreateDirectoryIfNotExists(filePath);
-
-            using (var fs = new FileStream(filePath, FileMode.Append, FileAccess.Write))
-            {
-                using (var sw = new StreamWriter(fs, ECharsetUtils.GetEncoding(charset)))
-                {
-                    sw.Write(content);
-                }
-            }
+            AppendText(filePath, ECharsetUtils.GetEncoding(charset), content);
         }
 
+	    public static void AppendText(string filePath, Encoding encoding, string content)
+	    {
+	        DirectoryUtils.CreateDirectoryIfNotExists(filePath);
+
+	        var file = new FileStream(filePath, FileMode.Append, FileAccess.Write);
+	        using (var writer = new StreamWriter(file, encoding))
+	        {
+	            writer.Write(content);
+	            writer.Flush();
+	            writer.Close();
+
+	            file.Close();
+	        }
+        }
+
+	    public static async Task AppendTextAsync(string filePath, string content)
+	    {
+	        DirectoryUtils.CreateDirectoryIfNotExists(filePath);
+
+	        var file = new FileStream(filePath, FileMode.Append, FileAccess.Write);
+	        using (var writer = new StreamWriter(file, Encoding.UTF8))
+	        {
+	            await writer.WriteAsync(content);
+	            writer.Flush();
+	            writer.Close();
+
+	            file.Close();
+	        }
+	    }
 
         public static void RemoveReadOnlyAndHiddenIfExists(string filePath)
         {
@@ -176,7 +234,6 @@ namespace SiteServer.Utils
 		        DirectoryUtils.CreateDirectoryIfNotExists(destFilePath);
 
 		        File.Copy(sourceFilePath, destFilePath, isOverride);
-
 		    }
 		    catch
 		    {

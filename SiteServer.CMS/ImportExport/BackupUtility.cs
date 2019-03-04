@@ -1,8 +1,10 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using SiteServer.CMS.Caches;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model.Enumerations;
+using SiteServer.CMS.Core.Enumerations;
+using SiteServer.CMS.Database.Core;
 using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.CMS.ImportExport
@@ -60,7 +62,7 @@ namespace SiteServer.CMS.ImportExport
             exportObject.ExportTablesAndStyles(tableDirectoryPath);
             var configurationFilePath = PathUtils.Combine(metadataPath, DirectoryUtils.SiteTemplates.FileConfiguration);
             exportObject.ExportConfiguration(configurationFilePath);
-            exportObject.ExportMetadata(siteInfo.SiteName, siteInfo.Additional.WebUrl, string.Empty, string.Empty, metadataPath);
+            exportObject.ExportMetadata(siteInfo.SiteName, siteInfo.WebUrl, string.Empty, string.Empty, metadataPath);
 
             ZipUtils.CreateZip(filePath, siteTemplatePath);
             DirectoryUtils.DeleteDirectoryIfExists(siteTemplatePath);
@@ -89,18 +91,18 @@ namespace SiteServer.CMS.ImportExport
                 var channelIdList = ChannelManager.GetChannelIdList(ChannelManager.GetChannelInfo(siteId, siteId), EScopeType.Children, string.Empty, string.Empty, string.Empty);
                 foreach (var channelId in channelIdList)
                 {
-                    DataProvider.ChannelDao.Delete(siteId, channelId);
+                    DataProvider.Channel.Delete(siteId, channelId);
                 }
             }
             if (isDeleteTemplates)
             {
                 var templateInfoList =
-                    DataProvider.TemplateDao.GetTemplateInfoListBySiteId(siteId);
+                    DataProvider.Template.GetTemplateInfoListBySiteId(siteId);
                 foreach (var templateInfo in templateInfoList)
                 {
-                    if (templateInfo.IsDefault == false)
+                    if (templateInfo.Default == false)
                     {
-                        DataProvider.TemplateDao.Delete(siteId, templateInfo.Id);
+                        DataProvider.Template.Delete(siteId, templateInfo.Id);
                     }
                 }
             }
@@ -118,7 +120,6 @@ namespace SiteServer.CMS.ImportExport
 
             //导入辅助表
             var tableDirectoryPath = PathUtils.Combine(siteTemplateMetadataPath, DirectoryUtils.SiteTemplates.Table);
-            importObject.ImportAuxiliaryTables(tableDirectoryPath, isUseTable);
 
             //导入站点设置
             var configurationFilePath = PathUtils.Combine(siteTemplateMetadataPath, DirectoryUtils.SiteTemplates.FileConfiguration);
@@ -127,8 +128,6 @@ namespace SiteServer.CMS.ImportExport
             //导入栏目及内容
             var siteContentDirectoryPath = PathUtils.Combine(siteTemplateMetadataPath, DirectoryUtils.SiteTemplates.SiteContent);
             importObject.ImportChannelsAndContents(0, siteContentDirectoryPath, isOverride);
-
-            DataProvider.ChannelDao.UpdateContentNum(siteInfo);
 
             //导入表样式及清除缓存
             if (isUseTable)

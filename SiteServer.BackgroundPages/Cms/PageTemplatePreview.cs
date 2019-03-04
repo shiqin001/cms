@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Web.UI.WebControls;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
+using SiteServer.CMS.Database.Core;
 using SiteServer.CMS.StlParser.Utility;
 using SiteServer.Plugin;
 
@@ -27,7 +30,7 @@ namespace SiteServer.BackgroundPages.Cms
             VerifySitePermissions(ConfigManager.WebSitePermissions.Template);
 
             TemplateTypeUtils.AddListItems(DdlTemplateType);
-            ChannelManager.AddListItems(DdlChannelId.Items, SiteInfo, false, true, AuthRequest.AdminPermissions);
+            ChannelManager.AddListItems(DdlChannelId.Items, SiteInfo, false, true, AuthRequest.AdminPermissionsImpl);
             if (AuthRequest.IsQueryExists("fromCache"))
             {
                 TbTemplate.Text = TranslateUtils.DecryptStringBySecretKey(CacheUtils.Get<string>("SiteServer.BackgroundPages.Cms.PageTemplatePreview"));
@@ -68,11 +71,11 @@ namespace SiteServer.BackgroundPages.Cms
                 channelId = TranslateUtils.ToInt(DdlChannelId.SelectedValue);
                 if (templateType == TemplateType.ContentTemplate)
                 {
-                    var nodeInfo = ChannelManager.GetChannelInfo(SiteId, channelId);
-                    if (nodeInfo.ContentNum > 0)
+                    var channelInfo = ChannelManager.GetChannelInfo(SiteId, channelId);
+                    var count = ContentManager.GetCount(SiteInfo, channelInfo, true);
+                    if (count > 0)
                     {
-                        var tableName = ChannelManager.GetTableName(SiteInfo, nodeInfo);
-                        contentId = DataProvider.ContentDao.GetFirstContentId(tableName, channelId);
+                        contentId = channelInfo.ContentRepository.GetFirstContentId(SiteId, channelId);
                     }
 
                     if (contentId == 0)

@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.BackgroundPages.Controls;
-using SiteServer.BackgroundPages.Core;
 using SiteServer.CMS.Core;
+using SiteServer.CMS.DataCache;
 using SiteServer.CMS.Model;
 using SiteServer.Utils.Enumerations;
 
@@ -22,8 +22,7 @@ namespace SiteServer.BackgroundPages.Settings
 
         public Repeater RptContents;
         public Pager PgContents;
-
-        public Button BtnAdd;
+        
         public Button BtnLock;
         public Button BtnUnLock;
         public Button BtnDelete;
@@ -45,7 +44,7 @@ namespace SiteServer.BackgroundPages.Settings
             var keyword = AuthRequest.GetQueryString("keyword");
             var roleName = AuthRequest.GetQueryString("roleName");
             var lastActivityDate = AuthRequest.GetQueryInt("lastActivityDate");
-            var isConsoleAdministrator = AuthRequest.AdminPermissions.IsConsoleAdministrator;
+            var isConsoleAdministrator = AuthRequest.AdminPermissionsImpl.IsConsoleAdministrator;
             var adminName = AuthRequest.AdminName;
             var order = AuthRequest.IsQueryExists("order") ? AuthRequest.GetQueryString("order") : nameof(AdministratorInfo.UserName);
             var departmentId = AuthRequest.GetQueryInt("departmentId");
@@ -59,7 +58,8 @@ namespace SiteServer.BackgroundPages.Settings
                     var userNameArrayList = TranslateUtils.StringCollectionToStringList(userNameCollection);
                     foreach (var userName in userNameArrayList)
                     {
-                        DataProvider.AdministratorDao.Delete(userName);
+                        var adminInfo = AdminManager.GetAdminInfoByUserName(userName);
+                        DataProvider.AdministratorDao.Delete(adminInfo);
                     }
 
                     AuthRequest.AddAdminLog("删除管理员", $"管理员:{userNameCollection}");
@@ -77,7 +77,7 @@ namespace SiteServer.BackgroundPages.Settings
                 try
                 {
                     var userNameList = TranslateUtils.StringCollectionToStringList(userNameCollection);
-                    DataProvider.AdministratorDao.Lock(userNameList);
+                    //DataProvider.AdministratorDao.Lock(userNameList);
 
                     AuthRequest.AddAdminLog("锁定管理员", $"管理员:{userNameCollection}");
 
@@ -94,7 +94,7 @@ namespace SiteServer.BackgroundPages.Settings
                 try
                 {
                     var userNameList = TranslateUtils.StringCollectionToStringList(userNameCollection);
-                    DataProvider.AdministratorDao.UnLock(userNameList);
+                    //DataProvider.AdministratorDao.UnLock(userNameList);
 
                     AuthRequest.AddAdminLog("解除锁定管理员", $"管理员:{userNameCollection}");
 
@@ -126,7 +126,7 @@ namespace SiteServer.BackgroundPages.Settings
 
             if (IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.Admin);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.Admin);
 
             var theListItem = new ListItem("全部", string.Empty)
             {
@@ -134,7 +134,7 @@ namespace SiteServer.BackgroundPages.Settings
             };
             DdlRoleName.Items.Add(theListItem);
 
-            var allRoles = AuthRequest.AdminPermissions.IsConsoleAdministrator ? DataProvider.RoleDao.GetRoleNameList() : DataProvider.RoleDao.GetRoleNameListByCreatorUserName(AuthRequest.AdminName);
+            var allRoles = AuthRequest.AdminPermissionsImpl.IsConsoleAdministrator ? DataProvider.RoleDao.GetRoleNameList() : DataProvider.RoleDao.GetRoleNameListByCreatorUserName(AuthRequest.AdminName);
 
             var allPredefinedRoles = EPredefinedRoleUtils.GetAllPredefinedRoleName();
             foreach (var theRoleName in allRoles)
@@ -179,8 +179,6 @@ namespace SiteServer.BackgroundPages.Settings
 
             PgContents.DataBind();
 
-            BtnAdd.Attributes.Add("onclick", $@"location.href='{PageAdministratorAdd.GetRedirectUrlToAdd(departmentId)}';return false;");
-
             var urlAdministrator = GetRedirectUrl();
 
             BtnLock.Attributes.Add("onclick", PageUtils.GetRedirectStringWithCheckBoxValueAndAlert(urlAdministrator + "?Lock=True", "UserNameCollection", "UserNameCollection", "请选择需要锁定的管理员！", "此操作将锁定所选管理员，确认吗？"));
@@ -214,9 +212,11 @@ namespace SiteServer.BackgroundPages.Settings
         {
             if (e.Item.ItemType != ListItemType.Item && e.Item.ItemType != ListItemType.AlternatingItem) return;
 
+            var userId = SqlUtils.EvalInt(e.Item.DataItem, nameof(AdministratorInfo.Id));
             var userName = SqlUtils.EvalString(e.Item.DataItem, nameof(AdministratorInfo.UserName));
             var displayName = SqlUtils.EvalString(e.Item.DataItem, nameof(AdministratorInfo.DisplayName));
             var mobile = SqlUtils.EvalString(e.Item.DataItem, nameof(AdministratorInfo.Mobile));
+            var avatarUrl = SqlUtils.EvalString(e.Item.DataItem, nameof(AdministratorInfo.AvatarUrl));
             var departmentId = SqlUtils.EvalInt(e.Item.DataItem, nameof(AdministratorInfo.DepartmentId));
             var areaId = SqlUtils.EvalInt(e.Item.DataItem, nameof(AdministratorInfo.AreaId));
             if (string.IsNullOrEmpty(displayName))
@@ -225,9 +225,10 @@ namespace SiteServer.BackgroundPages.Settings
             }
             var countOfFailedLogin = SqlUtils.EvalInt(e.Item.DataItem, nameof(AdministratorInfo.CountOfFailedLogin));
             var countOfLogin = SqlUtils.EvalInt(e.Item.DataItem, nameof(AdministratorInfo.CountOfLogin));
-            var isLockedOut = SqlUtils.EvalBool(e.Item.DataItem, nameof(AdministratorInfo.IsLockedOut));
+            var isLockedOut = SqlUtils.EvalBool(e.Item.DataItem, nameof(AdministratorInfo.Locked));
             var lastActivityDate = SqlUtils.EvalDateTime(e.Item.DataItem, nameof(AdministratorInfo.LastActivityDate));
 
+            var ltlAvatar = (Literal)e.Item.FindControl("ltlAvatar");
             var ltlUserName = (Literal)e.Item.FindControl("ltlUserName");
             var ltlDisplayName = (Literal)e.Item.FindControl("ltlDisplayName");
             var ltlMobile = (Literal)e.Item.FindControl("ltlMobile");
@@ -239,7 +240,8 @@ namespace SiteServer.BackgroundPages.Settings
             var ltlActions = (Literal)e.Item.FindControl("ltlActions");
             var ltlSelect = (Literal)e.Item.FindControl("ltlSelect");
 
-            ltlUserName.Text = GetUserNameHtml(userName, countOfFailedLogin, isLockedOut, lastActivityDate);
+            ltlAvatar.Text = $@"<img src=""{(!string.IsNullOrEmpty(avatarUrl) ? avatarUrl : "../assets/images/default_avatar.png")}"" class=""rounded-circle"" style=""height: 36px; width: 36px;""/>";
+            ltlUserName.Text = GetUserNameHtml(userId, userName, countOfFailedLogin, isLockedOut, lastActivityDate);
             ltlDisplayName.Text = displayName;
             ltlMobile.Text = mobile;
             ltlDepartment.Text = DepartmentManager.GetDepartmentName(departmentId);
@@ -247,17 +249,24 @@ namespace SiteServer.BackgroundPages.Settings
 
             ltlLastActivityDate.Text = GetDateTime(lastActivityDate);
             ltlCountOfLogin.Text = countOfLogin.ToString();
-            ltlRoles.Text = AdminManager.GetRolesHtml(userName);
+            ltlRoles.Text = AdminManager.GetRoleNames(userName);
 
             if (AuthRequest.AdminName != userName)
             {
                 ltlActions.Text = $@"
-<a class=""m-r-5"" href=""{PageAdministratorAdd.GetRedirectUrlToEdit(departmentId, userName)}"">修改资料</a>
-<a class=""m-r-5"" href=""javascript:;"" onclick=""{ModalAdminPassword.GetOpenWindowString(userName)}"">更改密码</a>
+<a class=""m-r-5"" href=""{NameUtils.Settings.AdminProfile}?pageType=admin&userId={userId}"">修改资料</a>
+<a class=""m-r-5"" href=""{NameUtils.Settings.AdminPassword}?pageType=admin&userId={userId}"">更改密码</a>
 <a class=""m-r-5"" href=""javascript:;"" onclick=""{ModalPermissionsSet.GetOpenWindowString(userName)}"">权限设置</a>
 ";
 
                 ltlSelect.Text = $@"<input type=""checkbox"" name=""UserNameCollection"" value=""{userName}"" />";
+            }
+            else
+            {
+                ltlActions.Text = $@"
+<a class=""m-r-5"" href=""{NameUtils.Settings.AdminProfile}?pageType=admin&userId={userId}"">修改资料</a>
+<a class=""m-r-5"" href=""{NameUtils.Settings.AdminPassword}?pageType=admin&userId={userId}"">更改密码</a>
+";
             }
         }
 
@@ -271,9 +280,8 @@ namespace SiteServer.BackgroundPages.Settings
             return retval;
         }
 
-        private string GetUserNameHtml(string userName, int countOfFailedLogin, bool isLockedOut, DateTime lastActivityDate)
+        private string GetUserNameHtml(int userId, string userName, int countOfFailedLogin, bool isLockedOut, DateTime lastActivityDate)
         {
-            var showPopWinString = ModalAdminView.GetOpenWindowString(userName);
             var state = string.Empty;
             if (isLockedOut)
             {
@@ -296,7 +304,7 @@ namespace SiteServer.BackgroundPages.Settings
                     }
                 }
             }
-            return $@"<a href=""javascript:;"" onclick=""{showPopWinString}"">{userName}</a> {state}";
+            return $@"<a href=""{NameUtils.Settings.AdminView}?pageType=admin&userId={userId}"">{userName}</a> {state}";
         }
 
         public void Search_OnClick(object sender, EventArgs e)

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using SiteServer.CMS.Core.Office;
 using SiteServer.Utils;
 
 namespace SiteServer.BackgroundPages.Cms
@@ -32,7 +31,8 @@ namespace SiteServer.BackgroundPages.Cms
                 var extendName = fileName.Substring(fileName.LastIndexOf(".", StringComparison.Ordinal)).ToLower();
                 if (extendName == ".doc" || extendName == ".docx")
                 {
-                    filePath = WordUtils.GetWordFilePath(fileName);
+                    filePath = PathUtils.GetTemporaryFilesPath(fileName);
+                    DirectoryUtils.CreateDirectoryIfNotExists(filePath);
                     file.SaveAs(filePath);
                 }
             }

@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Web.UI.HtmlControls;
 using System.Web.UI.WebControls;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
 using SiteServer.Utils;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
 
 namespace SiteServer.BackgroundPages.Cms
 {
@@ -19,8 +20,7 @@ namespace SiteServer.BackgroundPages.Cms
         protected HtmlInputHidden HihType;
         protected TextBox TbHits;
 
-        private int _channelId;
-        private string _tableName;
+        private ChannelInfo _channelInfo;
         private List<int> _idList;
 
         public static string GetOpenWindowString(int siteId, int channelId)
@@ -45,8 +45,8 @@ namespace SiteServer.BackgroundPages.Cms
 
             PageUtils.CheckRequestParameter("siteId", "channelId");
 
-            _channelId = AuthRequest.GetQueryInt("channelId");
-            _tableName = ChannelManager.GetTableName(SiteInfo, _channelId);
+            var channelId = AuthRequest.GetQueryInt("channelId");
+            _channelInfo = ChannelManager.GetChannelInfo(SiteId, channelId);
             _idList = TranslateUtils.StringCollectionToIntList(AuthRequest.GetQueryString("contentIdCollection"));
 		}
 
@@ -61,26 +61,26 @@ namespace SiteServer.BackgroundPages.Cms
                     {
                         foreach (var contentId in _idList)
                         {
-                            var contentInfo = DataProvider.ContentDao.GetContentInfo(_tableName, contentId);
+                            var contentInfo = ContentManager.GetContentInfo(SiteInfo, _channelInfo, contentId);
                             if (contentInfo != null)
                             {
                                 if (CbIsRecommend.Checked)
                                 {
-                                    contentInfo.IsRecommend = true;
+                                    contentInfo.Recommend = true;
                                 }
                                 if (CbIsHot.Checked)
                                 {
-                                    contentInfo.IsHot = true;
+                                    contentInfo.Hot = true;
                                 }
                                 if (CbIsColor.Checked)
                                 {
-                                    contentInfo.IsColor = true;
+                                    contentInfo.Color = true;
                                 }
                                 if (CbIsTop.Checked)
                                 {
-                                    contentInfo.IsTop = true;
+                                    contentInfo.Top = true;
                                 }
-                                DataProvider.ContentDao.Update(_tableName, SiteInfo, contentInfo);
+                                DataProvider.ContentRepository.Update(SiteInfo, _channelInfo, contentInfo);
                             }
                         }
 
@@ -95,26 +95,26 @@ namespace SiteServer.BackgroundPages.Cms
                     {
                         foreach (var contentId in _idList)
                         {
-                            var contentInfo = DataProvider.ContentDao.GetContentInfo(_tableName, contentId);
+                            var contentInfo = ContentManager.GetContentInfo(SiteInfo, _channelInfo, contentId);
                             if (contentInfo != null)
                             {
                                 if (CbIsRecommend.Checked)
                                 {
-                                    contentInfo.IsRecommend = false;
+                                    contentInfo.Recommend = false;
                                 }
                                 if (CbIsHot.Checked)
                                 {
-                                    contentInfo.IsHot = false;
+                                    contentInfo.Hot = false;
                                 }
                                 if (CbIsColor.Checked)
                                 {
-                                    contentInfo.IsColor = false;
+                                    contentInfo.Color = false;
                                 }
                                 if (CbIsTop.Checked)
                                 {
-                                    contentInfo.IsTop = false;
+                                    contentInfo.Top = false;
                                 }
-                                DataProvider.ContentDao.Update(_tableName, SiteInfo, contentInfo);
+                                DataProvider.ContentRepository.Update(SiteInfo, _channelInfo, contentInfo);
                             }
                         }
 
@@ -129,7 +129,12 @@ namespace SiteServer.BackgroundPages.Cms
 
                     foreach (var contentId in _idList)
                     {
-                        DataProvider.ContentDao.SetValue(_tableName, contentId, ContentAttribute.Hits, hits.ToString());
+                        var contentInfo = ContentManager.GetContentInfo(SiteInfo, _channelInfo, contentId);
+                        if (contentInfo != null)
+                        {
+                            contentInfo.Hits = hits;
+                            DataProvider.ContentRepository.Update(SiteInfo, _channelInfo, contentInfo);
+                        }
                     }
 
                     AuthRequest.AddSiteLog(SiteId, "设置内容点击量");

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Data;
@@ -7,7 +6,8 @@ using System.Web.UI;
 using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.BackgroundPages.Core;
-using SiteServer.CMS.Core;
+using SiteServer.CMS.Apis;
+using SiteServer.CMS.Database.Core;
 
 namespace SiteServer.BackgroundPages.Controls
 {
@@ -17,7 +17,6 @@ namespace SiteServer.BackgroundPages.Controls
     public class SqlPager : Table, INamingContainer
     {
         private PagedDataSource _dataSource;
-        private string CacheKeyName => Page.Request.FilePath + "_" + UniqueID + "_Data";
         private const string ParmPage = "page";
         private bool _isSetTotalCount;
 
@@ -76,37 +75,12 @@ namespace SiteServer.BackgroundPages.Controls
             _dataSource = null;
             ControlToPaginate = null;
 
-            PagingMode = PagingMode.NonCached;
             PagerStyle = PagerStyle.NextPrev;
             CurrentPageIndex = 0;
             SelectCommand = "";
             ItemsPerPage = 10;
             TotalPages = -1;
-            CacheDuration = 60;
             SortMode = SortMode.DESC;
-        }
-
-        /// <summary>
-        /// Removes any data cached for paging
-        /// </summary>
-        public void ClearCache()
-        {
-            if (PagingMode == PagingMode.Cached)
-                Page.Cache.Remove(CacheKeyName);
-        }
-
-        [Description("Gets and sets for how many seconds the data should stay in the cache")]
-        public int CacheDuration
-        {
-            get { return Convert.ToInt32(ViewState["CacheDuration"]); }
-            set { ViewState["CacheDuration"] = value; }
-        }
-
-        [Description("Indicates whether the data are retrieved page by page or can be cached")]
-        public PagingMode PagingMode
-        {
-            get { return (PagingMode)ViewState["PagingMode"]; }
-            set { ViewState["PagingMode"] = value; }
         }
 
         [Description("Indicates the style of the pager's navigation bar")]
@@ -298,14 +272,7 @@ namespace SiteServer.BackgroundPages.Controls
                 return;
 
             // Fetch data
-            if (PagingMode == PagingMode.Cached)
-            {
-                FetchAllData();
-            }
-            else
-            {
-                FetchPageData();
-            }
+            FetchPageData();
 
             // Bind data to the buddy control
             if (ControlToPaginate is BaseDataList)
@@ -646,49 +613,6 @@ namespace SiteServer.BackgroundPages.Controls
         }
 
         /// <summary>
-        /// Runs the query for all data to be paged and caches the resulting data
-        /// </summary>
-        private void FetchAllData()
-        {
-            // Looks for data in the ASP.NET Cache
-            var data = (DataTable)Page.Cache[CacheKeyName];
-            if (data == null)
-            {
-                // Fix SelectCommand with order-by info
-                AdjustSelectCommand(true);
-
-                // If data expired or has never been fetched, go to the database
-                //SqlDataAdapter adapter = new SqlDataAdapter(SelectCommand, ConnectionString);
-                var adapter = SqlUtils.GetIDbDataAdapter(SelectCommand, WebConfigUtils.ConnectionString);
-                data = new DataTable();
-                //adapter.Fill(data);
-                SqlUtils.FillDataAdapterWithDataTable(adapter, data);
-                Page.Cache.Insert(CacheKeyName, data, null,
-                    DateTime.Now.AddSeconds(CacheDuration),
-                    System.Web.Caching.Cache.NoSlidingExpiration);
-            }
-
-            // Configures the paged data source component
-            if (_dataSource == null)
-                _dataSource = new PagedDataSource();
-            _dataSource.DataSource = data.DefaultView; // must be IEnumerable!
-            _dataSource.AllowPaging = true;
-            _dataSource.PageSize = ItemsPerPage;
-            TotalPages = _dataSource.PageCount;
-
-            // Ensures the page index is valid 
-            ValidatePageIndex();
-            if (CurrentPageIndex == -1)
-            {
-                _dataSource = null;
-                return;
-            }
-
-            // Selects the page to view
-            _dataSource.CurrentPageIndex = CurrentPageIndex;
-        }
-
-        /// <summary>
         /// Runs the query to get only the data that fit into the current page
         /// </summary>
         private void FetchPageData()
@@ -748,7 +672,7 @@ namespace SiteServer.BackgroundPages.Controls
 
         private int GetQueryVirtualCount()
         {
-            var recCount = DataProvider.DatabaseDao.GetPageTotalCount(SelectCommand);
+            var recCount = DatabaseApi.Instance.GetPageTotalCount(SelectCommand);
             //            SqlConnection conn = new SqlConnection(ConnectionString);
             //            SqlCommand cmd = new SqlCommand(cmdText, conn);
             //IDbConnection conn = SqlUtils.GetIDbConnection(DataProvider.ADOType, ConnectionString);
@@ -809,7 +733,7 @@ namespace SiteServer.BackgroundPages.Controls
             }
             var cmdText = SqlUtils.GetPageSqlString(SelectCommand, orderString, ItemsPerPage, CurrentPageIndex, countInfo.PageCount, countInfo.RecordsInLastPage);
 
-            var conn = SqlUtils.GetIDbConnection(WebConfigUtils.DatabaseType, WebConfigUtils.ConnectionString);
+            var conn = SqlDifferences.GetIDbConnection(WebConfigUtils.DatabaseType, WebConfigUtils.ConnectionString);
             var cmd = SqlUtils.GetIDbCommand();
             cmd.Connection = conn;
             cmd.CommandText = cmdText;

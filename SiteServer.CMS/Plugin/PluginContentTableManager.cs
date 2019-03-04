@@ -1,17 +1,19 @@
 ﻿using System.Collections.Generic;
-using System.Web.UI.WebControls;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
-using SiteServer.CMS.Plugin.Model;
+using SiteServer.CMS.Apis;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Database.Attributes;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
+using SiteServer.CMS.Plugin.Impl;
 using SiteServer.Plugin;
 using SiteServer.Utils;
+using TableColumn = SiteServer.Plugin.TableColumn;
 
 namespace SiteServer.CMS.Plugin
 {
-    public class PluginContentTableManager
+    public static class PluginContentTableManager
     {
-        public static bool IsContentTable(PluginService service)
+        public static bool IsContentTable(ServiceImpl service)
         {
             return !string.IsNullOrEmpty(service.ContentTableName) &&
                                      service.ContentTableColumns != null && service.ContentTableColumns.Count > 0;
@@ -30,106 +32,26 @@ namespace SiteServer.CMS.Plugin
             return string.Empty;
         }
 
-        public static void SyncContentTable(PluginService service)
+        public static void SyncContentTable(ServiceImpl service)
         {
             if (!IsContentTable(service)) return;
 
             var tableName = service.ContentTableName;
 
-            if (!DataProvider.TableDao.IsExists(tableName))
-            {
-                ContentTableCreateMetadatas(service.Metadata, tableName, service.ContentTableColumns);
-            }
-            else
-            {
-                ContentTableUpdateMetadatas(tableName, service.ContentTableColumns);
-            }
+            var tableColumns = new List<TableColumn>();
+            tableColumns.AddRange(DataProvider.ContentRepository.TableColumns);
+            tableColumns.AddRange(service.ContentTableColumns);
 
-            if (!DataProvider.DatabaseDao.IsTableExists(tableName))
+            if (!DatabaseApi.Instance.IsTableExists(tableName))
             {
-                DataProvider.TableDao.CreateDbTable(tableName);
+                DatabaseApi.Instance.CreateTable(tableName, tableColumns, service.PluginId, true, out _, out _);
             }
             else
             {
-                DataProvider.TableDao.SyncDbTable(tableName);
+                DatabaseApi.Instance.AlterTable(tableName, tableColumns, service.PluginId, ContentAttribute.DropAttributes.Value);
             }
 
             ContentTableCreateOrUpdateStyles(tableName, service.ContentTableColumns);
-        }
-
-        private static void ContentTableCreateMetadatas(IMetadata metadata, string tableName, List<TableColumn> tableColumns)
-        {
-            DataProvider.TableDao.DeleteCollectionTableInfoAndDbTable(tableName);
-            DataProvider.TableMetadataDao.Delete(tableName);
-            DataProvider.TableStyleDao.Delete(tableName);
-
-            var metadataInfoList = new List<TableMetadataInfo>();
-            foreach (var tableColumn in tableColumns)
-            {
-                if (string.IsNullOrEmpty(tableColumn.AttributeName) ||
-                    ContentAttribute.AllAttributesLowercase.Contains(tableColumn.AttributeName.ToLower()))
-                    continue;
-
-                metadataInfoList.Add(new TableMetadataInfo(0, tableName,
-                    tableColumn.AttributeName, tableColumn.DataType, tableColumn.DataLength,
-                    0, true));
-            }
-
-            DataProvider.TableDao.Insert(
-                new TableInfo(0, tableName, $"插件内容表：{metadata.Title}", 0, false, false, false, string.Empty),
-                metadataInfoList);
-        }
-
-        private static void ContentTableUpdateMetadatas(string tableName, List<TableColumn> tableColumns)
-        {
-            var metadataInfoListToInsert = new List<TableMetadataInfo>();
-            var metadataInfoListToUpdate = new List<TableMetadataInfo>();
-
-            foreach (var tableColumn in tableColumns)
-            {
-                if (string.IsNullOrEmpty(tableColumn.AttributeName) ||
-                    ContentAttribute.AllAttributesLowercase.Contains(tableColumn.AttributeName.ToLower()))
-                    continue;
-
-                if (!TableMetadataManager.IsAttributeNameExists(tableName, tableColumn.AttributeName))
-                {
-                    var metadataInfo = new TableMetadataInfo(0, tableName,
-                        tableColumn.AttributeName, tableColumn.DataType,
-                        tableColumn.DataLength, 0, true);
-                    metadataInfoListToInsert.Add(metadataInfo);
-                }
-                else
-                {
-                    var isEquals = true;
-
-                    var metadataInfo = TableMetadataManager.GetTableMetadataInfo(tableName, tableColumn.AttributeName);
-
-                    if (metadataInfo.DataType != tableColumn.DataType)
-                    {
-                        isEquals = false;
-                        metadataInfo.DataType = tableColumn.DataType;
-                    }
-
-                    if (metadataInfo.DataLength != tableColumn.DataLength)
-                    {
-                        isEquals = false;
-                        metadataInfo.DataLength = tableColumn.DataLength;
-                    }
-
-                    if (isEquals) continue;
-
-                    metadataInfoListToUpdate.Add(metadataInfo);
-                }
-            }
-
-            foreach (var metadataInfo in metadataInfoListToInsert)
-            {
-                DataProvider.TableMetadataDao.Insert(metadataInfo);
-            }
-            foreach (var metadataInfo in metadataInfoListToUpdate)
-            {
-                DataProvider.TableMetadataDao.Update(metadataInfo);
-            }
         }
 
         private static void ContentTableCreateOrUpdateStyles(string tableName, List<TableColumn> tableColumns)
@@ -148,10 +70,10 @@ namespace SiteServer.CMS.Plugin
 
                 var isEquals = true;
 
-                if (styleInfo.InputType != inputStyle.InputType)
+                if (styleInfo.Type != inputStyle.InputType)
                 {
                     isEquals = false;
-                    styleInfo.InputType = inputStyle.InputType;
+                    styleInfo.Type = inputStyle.InputType;
                 }
 
                 if (!StringUtils.EqualsIgnoreNull(styleInfo.DisplayName, inputStyle.DisplayName))
@@ -178,52 +100,52 @@ namespace SiteServer.CMS.Plugin
                     styleInfo.Taxis = columnTaxis;
                 }
 
-                if (styleInfo.Additional.IsRequired != inputStyle.IsRequired)
+                if (styleInfo.Required != inputStyle.IsRequired)
                 {
                     isEquals = false;
-                    styleInfo.Additional.IsRequired = inputStyle.IsRequired;
+                    styleInfo.Required = inputStyle.IsRequired;
                 }
 
-                if (styleInfo.Additional.ValidateType != inputStyle.ValidateType)
+                if (!ValidateTypeUtils.Equals(inputStyle.ValidateType, styleInfo.ValidateType))
                 {
                     isEquals = false;
-                    styleInfo.Additional.ValidateType = inputStyle.ValidateType;
+                    styleInfo.ValidateType = inputStyle.ValidateType.Value;
                 }
 
-                if (styleInfo.Additional.MinNum != inputStyle.MinNum)
+                if (styleInfo.MinNum != inputStyle.MinNum)
                 {
                     isEquals = false;
-                    styleInfo.Additional.MinNum = inputStyle.MinNum;
+                    styleInfo.MinNum = inputStyle.MinNum;
                 }
 
-                if (styleInfo.Additional.MaxNum != inputStyle.MaxNum)
+                if (styleInfo.MaxNum != inputStyle.MaxNum)
                 {
                     isEquals = false;
-                    styleInfo.Additional.MaxNum = inputStyle.MaxNum;
+                    styleInfo.MaxNum = inputStyle.MaxNum;
                 }
 
-                if (!StringUtils.EqualsIgnoreNull(styleInfo.Additional.RegExp, inputStyle.RegExp))
+                if (!StringUtils.EqualsIgnoreNull(styleInfo.RegExp, inputStyle.RegExp))
                 {
                     isEquals = false;
-                    styleInfo.Additional.RegExp = inputStyle.RegExp;
+                    styleInfo.RegExp = inputStyle.RegExp;
                 }
 
-                if (!StringUtils.EqualsIgnoreNull(styleInfo.Additional.Width, inputStyle.Width))
+                if (!StringUtils.EqualsIgnoreNull(styleInfo.Width, inputStyle.Width))
                 {
                     isEquals = false;
-                    styleInfo.Additional.Width = inputStyle.Width;
+                    styleInfo.Width = inputStyle.Width;
                 }
 
-                if (!(styleInfo.Additional.Height == 0 && string.IsNullOrEmpty(inputStyle.Height)) && styleInfo.Additional.Height != TranslateUtils.ToInt(inputStyle.Height))
+                if (!(styleInfo.Height == 0 && string.IsNullOrEmpty(inputStyle.Height)) && styleInfo.Height != TranslateUtils.ToInt(inputStyle.Height))
                 {
                     isEquals = false;
-                    styleInfo.Additional.Height = TranslateUtils.ToInt(inputStyle.Height);
+                    styleInfo.Height = TranslateUtils.ToInt(inputStyle.Height);
                 }
 
                 if (!(styleInfo.StyleItems == null && inputStyle.ListItems == null))
                 {
                     var styleItems = styleInfo.StyleItems ?? new List<TableStyleItemInfo>();
-                    var listItems = inputStyle.ListItems ?? new List<ListItem>();
+                    var listItems = inputStyle.ListItems ?? new List<InputListItem>();
 
                     if (styleItems.Count > listItems.Count)
                     {
@@ -242,7 +164,7 @@ namespace SiteServer.CMS.Plugin
                                 TableStyleId = styleInfo.Id,
                                 ItemTitle = listItem.Text,
                                 ItemValue = listItem.Value,
-                                IsSelected = listItem.Selected
+                                Selected = listItem.Selected
                             });
                         }
                         else
@@ -261,10 +183,10 @@ namespace SiteServer.CMS.Plugin
                                 styleItem.ItemValue = listItem.Value;
                             }
 
-                            if (styleItem.IsSelected != listItem.Selected)
+                            if (styleItem.Selected != listItem.Selected)
                             {
                                 isEquals = false;
-                                styleItem.IsSelected = listItem.Selected;
+                                styleItem.Selected = listItem.Selected;
                             }
                         }
                     }
@@ -272,8 +194,8 @@ namespace SiteServer.CMS.Plugin
 
                 if (isEquals) continue;
 
-                styleInfo.IsVisibleInList = false;
-                styleInfo.Additional.IsValidate = true;
+                styleInfo.VisibleInList = false;
+                styleInfo.Validate = true;
                 styleInfoList.Add(styleInfo);
             }
 
@@ -281,12 +203,11 @@ namespace SiteServer.CMS.Plugin
             {
                 if (styleInfo.Id == 0)
                 {
-                    TableStyleManager.Insert(styleInfo);
+                    DataProvider.TableStyle.Insert(styleInfo);
                 }
                 else
                 {
-                    TableStyleManager.Update(styleInfo);
-                    TableStyleManager.DeleteAndInsertStyleItems(styleInfo.Id, styleInfo.StyleItems);
+                    DataProvider.TableStyle.Update(styleInfo);
                 }
             }
         }

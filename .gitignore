@@ -1,4 +1,7 @@
 *.zip
+TestResults/
+backup/
+update/
 build/
 *.exe
 *.exe.config
@@ -6,7 +9,6 @@ package-lock.json
 Web.Backup.config
 Web.Restore.config
 Web.RestoreUpdate.config
-.vscode/
 /SiteFiles/
 
 ## Ignore Visual Studio temporary files, build results, and

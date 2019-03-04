@@ -3,24 +3,30 @@ using System.Web;
 
 namespace SiteServer.Utils
 {
-    public class CookieUtils
+    public static class CookieUtils
     {
-        private CookieUtils()
-        {
-        }
-
-        public static void SetCookie(string name, string value, DateTime expires)
+        public static void SetCookie(string name, string value, TimeSpan expiresAt, bool isEncrypt = true)
         {
             SetCookie(new HttpCookie(name)
             {
                 Value = value,
-                Expires = expires
-            });
+                Expires = DateUtils.GetExpiresAt(expiresAt),
+                Domain = PageUtils.HttpContextRootDomain
+            }, isEncrypt);
         }
 
-        public static void SetCookie(HttpCookie cookie)
+        public static void SetCookie(string name, string value, bool isEncrypt = true)
         {
-            cookie.Value = TranslateUtils.EncryptStringBySecretKey(cookie.Value);
+            SetCookie(new HttpCookie(name)
+            {
+                Value = value,
+                Domain = PageUtils.HttpContextRootDomain
+            }, isEncrypt);
+        }
+
+        private static void SetCookie(HttpCookie cookie, bool isEncrypt)
+        {
+            cookie.Value = isEncrypt ? TranslateUtils.EncryptStringBySecretKey(cookie.Value) : cookie.Value;
             cookie.HttpOnly = false;
 
             if (HttpContext.Current.Request.Url.Scheme.Equals("https"))
@@ -30,12 +36,12 @@ namespace SiteServer.Utils
             HttpContext.Current.Response.Cookies.Add(cookie);
         }
 
-        public static string GetCookie(string name)
+        public static string GetCookie(string name, bool isDecrypt = true)
         {
             if (HttpContext.Current.Request.Cookies[name] == null) return string.Empty;
 
             var value = HttpContext.Current.Request.Cookies[name].Value;
-            return TranslateUtils.DecryptStringBySecretKey(value);
+            return isDecrypt ? TranslateUtils.DecryptStringBySecretKey(value) : value;
         }
 
         public static bool IsExists(string name)
@@ -45,11 +51,9 @@ namespace SiteServer.Utils
 
         public static void Erase(string name)
         {
-            var cookie = HttpContext.Current.Response.Cookies[name];
-            if (cookie != null)
+            if (HttpContext.Current.Request.Cookies[name] != null)
             {
-                cookie.Expires = DateTime.Now.AddDays(-1);
-                cookie.Values.Clear();
+                SetCookie(name, string.Empty, TimeSpan.FromDays(-1));
             }
         }
     }

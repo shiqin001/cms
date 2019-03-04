@@ -1,38 +1,75 @@
 ﻿using System;
 using System.Text;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
 using SiteServer.Utils;
 using SiteServer.Utils.IO;
 using SiteServer.Utils.Rss;
 using SiteServer.CMS.Core;
+using SiteServer.CMS.Core.Enumerations;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Utility;
 using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "Rss订阅", Description = "通过 stl:rss 标签在模板中生成Rss阅读器能够浏览的Rss订阅")]
+    [StlElement(Title = "Rss订阅", Description = "通过 stl:rss 标签在模板中生成Rss阅读器能够浏览的Rss订阅")]
     public class StlRss
     {
         private StlRss() { }
         public const string ElementName = "stl:rss";
 
-        private static readonly Attr ChannelIndex = new Attr("channelIndex", "栏目索引");
-        private static readonly Attr ChannelName = new Attr("channelName", "栏目名称");
-        private static readonly Attr Scope = new Attr("scope", "内容范围");
-        private static readonly Attr GroupChannel = new Attr("groupChannel", "指定显示的栏目组");
-        private static readonly Attr GroupChannelNot = new Attr("groupChannelNot", "指定不显示的栏目组");
-        private static readonly Attr GroupContent = new Attr("groupContent", "指定显示的内容组");
-        private static readonly Attr GroupContentNot = new Attr("groupContentNot", "指定不显示的内容组");
-        private static readonly Attr Tags = new Attr("tags", "指定标签");
-        private static readonly Attr Title = new Attr("title", "Rss订阅标题");
-        private static readonly Attr Description = new Attr("description", "Rss订阅摘要");
-        private static readonly Attr TotalNum = new Attr("totalNum", "显示内容数目");
-        private static readonly Attr StartNum = new Attr("startNum", "从第几条信息开始显示");
-        private static readonly Attr Order = new Attr("order", "排序");
-        private static readonly Attr IsTop = new Attr("isTop", "仅显示置顶内容");
-        private static readonly Attr IsRecommend = new Attr("isRecommend", "仅显示推荐内容");
-        private static readonly Attr IsHot = new Attr("isHot", "仅显示热点内容");
-        private static readonly Attr IsColor = new Attr("isColor", "仅显示醒目内容");
+        [StlAttribute(Title = "栏目索引")]
+        private const string ChannelIndex = nameof(ChannelIndex);
+
+        [StlAttribute(Title = "栏目名称")]
+        private const string ChannelName = nameof(ChannelName);
+
+        [StlAttribute(Title = "内容范围")]
+        private const string Scope = nameof(Scope);
+
+        [StlAttribute(Title = "指定显示的栏目组")]
+        private const string GroupChannel = nameof(GroupChannel);
+
+        [StlAttribute(Title = "指定不显示的栏目组")]
+        private const string GroupChannelNot = nameof(GroupChannelNot);
+
+        [StlAttribute(Title = "指定显示的内容组")]
+        private const string GroupContent = nameof(GroupContent);
+
+        [StlAttribute(Title = "指定不显示的内容组")]
+        private const string GroupContentNot = nameof(GroupContentNot);
+
+        [StlAttribute(Title = "指定标签")]
+        private const string Tags = nameof(Tags);
+
+        [StlAttribute(Title = "Rss订阅标题")]
+        private const string Title = nameof(Title);
+
+        [StlAttribute(Title = "Rss订阅摘要")]
+        private const string Description = nameof(Description);
+
+        [StlAttribute(Title = "显示内容数目")]
+        private const string TotalNum = nameof(TotalNum);
+
+        [StlAttribute(Title = "从第几条信息开始显示")]
+        private const string StartNum = nameof(StartNum);
+
+        [StlAttribute(Title = "排序")]
+        private const string Order = nameof(Order);
+
+        [StlAttribute(Title = "仅显示置顶内容")]
+        private const string IsTop = nameof(IsTop);
+
+        [StlAttribute(Title = "仅显示推荐内容")]
+        private const string IsRecommend = nameof(IsRecommend);
+
+        [StlAttribute(Title = "仅显示热点内容")]
+        private const string IsHot = nameof(IsHot);
+
+        [StlAttribute(Title = "仅显示醒目内容")]
+        private const string IsColor = nameof(IsColor);
+
 
         public static string Parse(PageInfo pageInfo, ContextInfo contextInfo)
         {
@@ -58,78 +95,78 @@ namespace SiteServer.CMS.StlParser.StlElement
             var isColor = false;
             var isColorExists = false;
 
-            foreach (var name in contextInfo.Attributes.Keys)
+            foreach (var name in contextInfo.Attributes.AllKeys)
             {
                 var value = contextInfo.Attributes[name];
 
-                if (StringUtils.EqualsIgnoreCase(name, Title.Name))
+                if (StringUtils.EqualsIgnoreCase(name, Title))
                 {
                     title = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Description.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Description))
                 {
                     description = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Scope.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Scope))
                 {
                     scopeTypeString = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, ChannelIndex.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, ChannelIndex))
                 {
                     channelIndex = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, ChannelName.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, ChannelName))
                 {
                     channelName = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, GroupChannel.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, GroupChannel))
                 {
                     groupChannel = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, GroupChannelNot.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, GroupChannelNot))
                 {
                     groupChannelNot = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, GroupContent.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, GroupContent))
                 {
                     groupContent = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, GroupContentNot.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, GroupContentNot))
                 {
                     groupContentNot = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Tags.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Tags))
                 {
                     tags = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, TotalNum.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, TotalNum))
                 {
                     totalNum = TranslateUtils.ToInt(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, StartNum.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, StartNum))
                 {
                     startNum = TranslateUtils.ToInt(value, 1);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, Order.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, Order))
                 {
-                    orderByString = StlDataUtility.GetContentOrderByString(pageInfo.SiteId, value, ETaxisType.OrderByTaxisDesc);
+                    orderByString = StlDataUtility.GetContentOrderByString(value, ETaxisType.OrderByTaxisDesc);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsTop.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, IsTop))
                 {
                     isTopExists = true;
                     isTop = TranslateUtils.ToBool(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsRecommend.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, IsRecommend))
                 {
                     isRecommendExists = true;
                     isRecommend = TranslateUtils.ToBool(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsHot.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, IsHot))
                 {
                     isHotExists = true;
                     isHot = TranslateUtils.ToBool(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsColor.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, IsColor))
                 {
                     isColorExists = true;
                     isColor = TranslateUtils.ToBool(value);
@@ -143,7 +180,7 @@ namespace SiteServer.CMS.StlParser.StlElement
         {
             var feed = new RssFeed
             {
-                Encoding = ECharsetUtils.GetEncoding(pageInfo.TemplateInfo.Charset),
+                Encoding = Encoding.UTF8,
                 Version = RssVersion.RSS20
             };
 
@@ -169,34 +206,38 @@ namespace SiteServer.CMS.StlParser.StlElement
             }
             channel.Link = new Uri(PageUtils.AddProtocolToUrl(PageUtility.GetChannelUrl(pageInfo.SiteInfo, nodeInfo, pageInfo.IsLocal)));
 
-            var dataSource = StlDataUtility.GetContentsDataSource(pageInfo.SiteInfo, channelId, 0, groupContent, groupContentNot, tags, false, false, false, false, false, false, false, startNum, totalNum, orderByString, isTopExists, isTop, isRecommendExists, isRecommend, isHotExists, isHot, isColorExists, isColor, string.Empty, scopeType, groupChannel, groupChannelNot, null);
+            var minContentInfoList = StlDataUtility.GetMinContentInfoList(pageInfo.SiteInfo, channelId, 0, groupContent, groupContentNot, tags, false, false, false, false, false, false, false, startNum, totalNum, orderByString, isTopExists, isTop, isRecommendExists, isRecommend, isHotExists, isHot, isColorExists, isColor, string.Empty, scopeType, groupChannel, groupChannelNot, null);
 
-            if (dataSource != null)
+            if (minContentInfoList != null)
             {
-                //foreach (var dataItem in dataSource)
-                //{
-                //    var item = new RssItem();
+                foreach (var minContentInfo in minContentInfoList)
+                {
+                    var item = new RssItem();
 
-                //    var contentInfo = new BackgroundContentInfo(dataItem);
-                //    item.Title = StringUtils.Replace("&", contentInfo.Title, "&amp;");
-                //    item.Description = contentInfo.Summary;
-                //    if (string.IsNullOrEmpty(item.Description))
-                //    {
-                //        item.Description = StringUtils.StripTags(contentInfo.Content);
-                //        item.Description = string.IsNullOrEmpty(item.Description) ? contentInfo.Title : StringUtils.MaxLengthText(item.Description, 200);
-                //    }
-                //    item.Description = StringUtils.Replace("&", item.Description, "&amp;");
-                //    item.PubDate = contentInfo.AddDate;
-                //    item.Link = new Uri(PageUtils.AddProtocolToUrl(PageUtility.GetContentUrl(pageInfo.SiteInfo, contentInfo)));
+                    var contentInfo = ContentManager.GetContentInfo(pageInfo.SiteInfo, minContentInfo.ChannelId, minContentInfo.Id);
+                    item.Title = StringUtils.Replace("&", contentInfo.Title, "&amp;");
+                    item.Description = contentInfo.Summary;
+                    if (string.IsNullOrEmpty(item.Description))
+                    {
+                        item.Description = StringUtils.StripTags(contentInfo.Content);
+                        item.Description = string.IsNullOrEmpty(item.Description) ? contentInfo.Title : StringUtils.MaxLengthText(item.Description, 200);
+                    }
+                    item.Description = StringUtils.Replace("&", item.Description, "&amp;");
+                    if (contentInfo.AddDate.HasValue)
+                    {
+                        item.PubDate = contentInfo.AddDate.Value;
+                    }
+                    
+                    item.Link = new Uri(PageUtils.AddProtocolToUrl(PageUtility.GetContentUrl(pageInfo.SiteInfo, contentInfo, false)));
 
-                //    channel.Items.Add(item);
-                //}
+                    channel.Items.Add(item);
+                }
             }
 
             feed.Channels.Add(channel);
 
             var builder = new StringBuilder();
-            var textWriter = new EncodedStringWriter(builder, ECharsetUtils.GetEncoding(pageInfo.TemplateInfo.Charset));
+            var textWriter = new EncodedStringWriter(builder, Encoding.UTF8);
             feed.Write(textWriter);
 
             return builder.ToString();

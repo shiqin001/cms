@@ -3,31 +3,50 @@ using System.Collections.Generic;
 using System.Text;
 using System.Web.UI.HtmlControls;
 using System.Web.UI.WebControls;
-using System.Xml;
-using SiteServer.Utils;
+using SiteServer.CMS.Caches;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Database.Models;
+using SiteServer.Utils;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Utility;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "翻页项", Description = "通过 stl:pageItem 标签在模板中显示翻页项（上一页、下一页、当前页、页跳转、页导航等）")]
+    [StlElement(Title = "翻页项", Description = "通过 stl:pageItem 标签在模板中显示翻页项（上一页、下一页、当前页、页跳转、页导航等）")]
     public class StlPageItem
     {
         private StlPageItem() { }
         public const string ElementName = "stl:pageItem";
 
-        private static readonly Attr Type = new Attr("type", "类型");
-        private static readonly Attr Text = new Attr("text", "显示的文字");
-        private static readonly Attr LinkClass = new Attr("linkClass", "链接CSS样式");
-        private static readonly Attr TextClass = new Attr("textClass", "文字CSS样式");
-        private static readonly Attr ListNum = new Attr("listNum", "页导航或页跳转显示链接数");
-        private static readonly Attr ListEllipsis = new Attr("listEllipsis", "页导航或页跳转链接太多时显示的省略号");
-        private static readonly Attr HasLr = new Attr("hasLr", "页码导航是否包含左右字符");
-        private static readonly Attr LStr = new Attr("lStr", "页面左字符");
-        private static readonly Attr RStr = new Attr("rStr", "页面右字符");
-        private static readonly Attr AlwaysA = new Attr("alwaysA", "页码总是超链接，包括无连接时");
+        [StlAttribute(Title = "类型")]
+        private const string Type = nameof(Type);
+
+        [StlAttribute(Title = "显示的文字")]
+        private const string Text = nameof(Text);
+
+        [StlAttribute(Title = "链接CSS样式")]
+        private const string LinkClass = nameof(LinkClass);
+
+        [StlAttribute(Title = "文字CSS样式")]
+        private const string TextClass = nameof(TextClass);
+
+        [StlAttribute(Title = "页导航或页跳转显示链接数")]
+        private const string ListNum = nameof(ListNum);
+
+        [StlAttribute(Title = "页导航或页跳转链接太多时显示的省略号")]
+        private const string ListEllipsis = nameof(ListEllipsis);
+
+        [StlAttribute(Title = "页码导航是否包含左右字符")]
+        private const string HasLr = nameof(HasLr);
+
+        [StlAttribute(Title = "页面左字符")]
+        private const string LStr = nameof(LStr);
+
+        [StlAttribute(Title = "页面右字符")]
+        private const string RStr = nameof(RStr);
+
+        [StlAttribute(Title = "页码总是超链接，包括无连接时")]
+        private const string AlwaysA = nameof(AlwaysA);
 
         public const string TypePreviousPage = "PreviousPage";				            //上一页
         public const string TypeNextPage = "NextPage";						            //下一页
@@ -53,16 +72,14 @@ namespace SiteServer.CMS.StlParser.StlElement
         };
 
         //对“翻页项”（pageItem）元素进行解析，此元素在生成页面时单独解析，不包含在ParseStlElement方法中。
-        public static string ParseElement(string stlElement, PageInfo pageInfo, int channelId, int contentId, int currentPageIndex, int pageCount, int totalNum, bool isXmlContent, EContextType contextType)
+        public static string ParseElement(string stlElement, PageInfo pageInfo, int channelId, int contentId, int currentPageIndex, int pageCount, int totalNum, EContextType contextType)
         {
             var parsedContent = string.Empty;
             try
             {
-                var xmlDocument = StlParserUtility.GetXmlDocument(stlElement, isXmlContent);
-                XmlNode node = xmlDocument.DocumentElement;
-                node = node?.FirstChild;
-                var label = node?.Name;
-                if (!StringUtils.EqualsIgnoreCase(label, ElementName)) return string.Empty;
+                var stlElementInfo = StlParserUtility.ParseStlElement(stlElement);
+
+                if (!StringUtils.EqualsIgnoreCase(stlElementInfo.Name, ElementName)) return string.Empty;
 
                 var text = string.Empty;
                 var type = string.Empty;
@@ -75,79 +92,72 @@ namespace SiteServer.CMS.StlParser.StlElement
                 var lStr = string.Empty;
                 var rStr = string.Empty;
                 var alwaysA = true;
-                var attributes = new Dictionary<string, string>();
+                var attributes = TranslateUtils.NewIgnoreCaseNameValueCollection();
 
-                var ie = node?.Attributes?.GetEnumerator();
-                if (ie != null)
+                foreach (var name in stlElementInfo.Attributes.AllKeys)
                 {
-                    while (ie.MoveNext())
-                    {
-                        var attr = (XmlAttribute)ie.Current;
-                        var name = attr.Name;
+                    var value = stlElementInfo.Attributes[name];
 
-                        if (StringUtils.EqualsIgnoreCase(name, Type.Name))
-                        {
-                            type = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, Text.Name))
-                        {
-                            text = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, ListNum.Name))
-                        {
-                            listNum = TranslateUtils.ToInt(attr.Value, 9);
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, ListEllipsis.Name))
-                        {
-                            listEllipsis = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, LinkClass.Name))
-                        {
-                            linkClass = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, TextClass.Name))
-                        {
-                            textClass = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, HasLr.Name))
-                        {
-                            hasLr = TranslateUtils.ToBool(attr.Value);
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, LStr.Name))
-                        {
-                            lStr = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, RStr.Name))
-                        {
-                            rStr = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, AlwaysA.Name))
-                        {
-                            alwaysA = TranslateUtils.ToBool(attr.Value);
-                        }
-                        else
-                        {
-                            attributes[name] = attr.Value;
-                        }
+                    if (StringUtils.EqualsIgnoreCase(name, Type))
+                    {
+                        type = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, Text))
+                    {
+                        text = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, ListNum))
+                    {
+                        listNum = TranslateUtils.ToInt(value, 9);
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, ListEllipsis))
+                    {
+                        listEllipsis = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, LinkClass))
+                    {
+                        linkClass = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, TextClass))
+                    {
+                        textClass = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, HasLr))
+                    {
+                        hasLr = TranslateUtils.ToBool(value);
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, LStr))
+                    {
+                        lStr = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, RStr))
+                    {
+                        rStr = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, AlwaysA))
+                    {
+                        alwaysA = TranslateUtils.ToBool(value);
+                    }
+                    else
+                    {
+                        attributes[name] = value;
                     }
                 }
 
-                string successTemplateString;
-                string failureTemplateString;
-                StlInnerUtility.GetYesNo(node.InnerXml, out successTemplateString, out failureTemplateString);
-                if (!string.IsNullOrEmpty(node.InnerXml) && string.IsNullOrEmpty(failureTemplateString))
+                StlParserUtility.GetYesNo(stlElementInfo.InnerHtml, out var successTemplateString, out var failureTemplateString);
+                if (!string.IsNullOrEmpty(stlElementInfo.InnerHtml) && string.IsNullOrEmpty(failureTemplateString))
                 {
                     failureTemplateString = successTemplateString;
                 }
 
                 //以下三个对象仅isChannelPage=true时需要
-                ChannelInfo nodeInfo = null;
+                ChannelInfo channelInfo = null;
 
                 string pageUrl;
                 if (contextType == EContextType.Channel)
                 {
-                    nodeInfo = ChannelManager.GetChannelInfo(pageInfo.SiteId, channelId);
-                    pageUrl = PagerUtility.GetUrlInChannelPage(type, pageInfo.SiteInfo, nodeInfo, 0, currentPageIndex, pageCount, pageInfo.IsLocal);
+                    channelInfo = ChannelManager.GetChannelInfo(pageInfo.SiteId, channelId);
+                    pageUrl = PagerUtility.GetUrlInChannelPage(type, pageInfo.SiteInfo, channelInfo, 0, currentPageIndex, pageCount, pageInfo.IsLocal);
                 }
                 else
                 {
@@ -171,7 +181,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         }
                         else
                         {
-                            pageUrl = PageUtils.UnclickedUrl;
+                            pageUrl = PageUtils.UnClickedUrl;
                         }
                     }
                     else if (StringUtils.EqualsIgnoreCase(type, TypeLastPage))
@@ -186,7 +196,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         }
                         else
                         {
-                            pageUrl = PageUtils.UnclickedUrl;
+                            pageUrl = PageUtils.UnClickedUrl;
                         }
                     }
                     else if (StringUtils.EqualsIgnoreCase(type, TypePreviousPage))
@@ -201,7 +211,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         }
                         else
                         {
-                            pageUrl = PageUtils.UnclickedUrl;
+                            pageUrl = PageUtils.UnClickedUrl;
                         }
                     }
                     else if (StringUtils.EqualsIgnoreCase(type, TypeNextPage))
@@ -216,7 +226,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         }
                         else
                         {
-                            pageUrl = PageUtils.UnclickedUrl;
+                            pageUrl = PageUtils.UnClickedUrl;
                         }
                     }
 
@@ -340,7 +350,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                     //pre ellipsis
                     if (index + pageLength < currentPageIndex + 1 && !string.IsNullOrEmpty(listEllipsis))
                     {
-                        pageUrl = contextType == EContextType.Channel ? PagerUtility.GetUrlInChannelPage(type, pageInfo.SiteInfo, nodeInfo, index, currentPageIndex, pageCount, pageInfo.IsLocal) : PagerUtility.GetUrlInContentPage(type, pageInfo.SiteInfo, channelId, contentId, index, currentPageIndex, pageCount, pageInfo.IsLocal);
+                        pageUrl = contextType == EContextType.Channel ? PagerUtility.GetUrlInChannelPage(type, pageInfo.SiteInfo, channelInfo, index, currentPageIndex, pageCount, pageInfo.IsLocal) : PagerUtility.GetUrlInContentPage(type, pageInfo.SiteInfo, channelId, contentId, index, currentPageIndex, pageCount, pageInfo.IsLocal);
 
                         pageBuilder.Append(!string.IsNullOrEmpty(successTemplateString)
                             ? GetParsedContent(successTemplateString, pageUrl, listEllipsis, pageInfo)
@@ -351,7 +361,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                     {
                         if (currentPageIndex + 1 != index)
                         {
-                            pageUrl = contextType == EContextType.Channel ? PagerUtility.GetUrlInChannelPage(type, pageInfo.SiteInfo, nodeInfo, index, currentPageIndex, pageCount, pageInfo.IsLocal) : PagerUtility.GetUrlInContentPage(type, pageInfo.SiteInfo, channelId, contentId, index, currentPageIndex, pageCount, pageInfo.IsLocal);
+                            pageUrl = contextType == EContextType.Channel ? PagerUtility.GetUrlInChannelPage(type, pageInfo.SiteInfo, channelInfo, index, currentPageIndex, pageCount, pageInfo.IsLocal) : PagerUtility.GetUrlInContentPage(type, pageInfo.SiteInfo, channelId, contentId, index, currentPageIndex, pageCount, pageInfo.IsLocal);
 
                             if (!string.IsNullOrEmpty(successTemplateString))
                             {
@@ -390,7 +400,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                     //pre ellipsis
                     if (index < pageCount && !string.IsNullOrEmpty(listEllipsis))
                     {
-                        pageUrl = contextType == EContextType.Channel ? PagerUtility.GetUrlInChannelPage(type, pageInfo.SiteInfo, nodeInfo, index, currentPageIndex, pageCount, pageInfo.IsLocal) : PagerUtility.GetUrlInContentPage(type, pageInfo.SiteInfo, channelId, contentId, index, currentPageIndex, pageCount, pageInfo.IsLocal);
+                        pageUrl = contextType == EContextType.Channel ? PagerUtility.GetUrlInChannelPage(type, pageInfo.SiteInfo, channelInfo, index, currentPageIndex, pageCount, pageInfo.IsLocal) : PagerUtility.GetUrlInContentPage(type, pageInfo.SiteInfo, channelId, contentId, index, currentPageIndex, pageCount, pageInfo.IsLocal);
 
                         pageBuilder.Append(!string.IsNullOrEmpty(successTemplateString)
                             ? GetParsedContent(successTemplateString, pageUrl, listEllipsis, pageInfo)
@@ -414,7 +424,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                     var uniqueId = "PageSelect_" + pageInfo.UniqueId;
                     selectControl.ID = uniqueId;
 
-                    string scriptHtml =
+                    var scriptHtml =
                         $"<script language=\"JavaScript\">function {uniqueId}_jumpMenu(targ,selObj,restore){{eval(targ+\".location=\'\"+selObj.options[selObj.selectedIndex].value+\"\'\");if (restore) selObj.selectedIndex=0;}}</script>";
                     selectControl.Attributes.Add("onChange", $"{uniqueId}_jumpMenu('self',this,0)");
 
@@ -422,7 +432,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                     {
                         if (currentPageIndex + 1 != index)
                         {
-                            pageUrl = contextType == EContextType.Channel ? PagerUtility.GetUrlInChannelPage(type, pageInfo.SiteInfo, nodeInfo, index, currentPageIndex, pageCount, pageInfo.IsLocal) : PagerUtility.GetUrlInContentPage(type, pageInfo.SiteInfo, channelId, contentId, index, currentPageIndex, pageCount, pageInfo.IsLocal);
+                            pageUrl = contextType == EContextType.Channel ? PagerUtility.GetUrlInChannelPage(type, pageInfo.SiteInfo, channelInfo, index, currentPageIndex, pageCount, pageInfo.IsLocal) : PagerUtility.GetUrlInContentPage(type, pageInfo.SiteInfo, channelId, contentId, index, currentPageIndex, pageCount, pageInfo.IsLocal);
 
                             var listitem = new ListItem(index.ToString(), pageUrl);
                             selectControl.Items.Add(listitem);
@@ -444,15 +454,15 @@ namespace SiteServer.CMS.StlParser.StlElement
             }
             catch (Exception ex)
             {
-                parsedContent = StlParserUtility.GetStlErrorMessage(ElementName, stlElement, ex);
+                parsedContent = LogUtils.AddStlErrorLog(pageInfo, ElementName, stlElement, ex);
             }
 
-            return StlParserUtility.GetBackHtml(parsedContent, pageInfo);
+            return parsedContent;
 
             //return parsedContent;
         }
 
-        public static string ParseEntity(string stlEntity, PageInfo pageInfo, int channelId, int contentId, int currentPageIndex, int pageCount, int totalNum, bool isXmlContent, EContextType contextType)
+        public static string ParseEntity(string stlEntity, PageInfo pageInfo, int channelId, int contentId, int currentPageIndex, int pageCount, int totalNum, EContextType contextType)
         {
             var parsedContent = string.Empty;
             try
@@ -509,7 +519,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         }
                     }
 
-                    parsedContent = isHyperlink ? pageUrl : PageUtils.UnclickedUrl;
+                    parsedContent = isHyperlink ? pageUrl : PageUtils.UnClickedUrl;
                 }
                 else if (type.ToLower().Equals(TypeCurrentPageIndex.ToLower()))//当前页索引
                 {
@@ -526,22 +536,20 @@ namespace SiteServer.CMS.StlParser.StlElement
             }
             catch (Exception ex)
             {
-                parsedContent = StlParserUtility.GetStlErrorMessage(ElementName, stlEntity, ex);
+                parsedContent = LogUtils.AddStlErrorLog(pageInfo, ElementName, stlEntity, ex);
             }
 
             return parsedContent;
         }
 
-        public static string ParseElementInSearchPage(string stlElement, PageInfo pageInfo, string ajaxDivId, int channelId, int currentPageIndex, int pageCount, int totalNum)
+        public static string ParseElementInSearchPage(string stlElement, PageInfo pageInfo, string ajaxDivId, int currentPageIndex, int pageCount, int totalNum)
         {
             var parsedContent = string.Empty;
             try
             {
-                var xmlDocument = StlParserUtility.GetXmlDocument(stlElement, true);
-                XmlNode node = xmlDocument.DocumentElement;
-                node = node?.FirstChild;
-                var label = node?.Name;
-                if (!StringUtils.EqualsIgnoreCase(label, ElementName)) return string.Empty;
+                var stlElementInfo = StlParserUtility.ParseStlElement(stlElement);
+
+                if (!StringUtils.EqualsIgnoreCase(stlElementInfo.Name, ElementName)) return string.Empty;
 
                 var text = string.Empty;
                 var type = string.Empty;
@@ -554,86 +562,81 @@ namespace SiteServer.CMS.StlParser.StlElement
                 var lStr = string.Empty;
                 var rStr = string.Empty;
                 var alwaysA = true;
-                var attributes = new Dictionary<string, string>();
+                var attributes = TranslateUtils.NewIgnoreCaseNameValueCollection();
 
-                var ie = node?.Attributes?.GetEnumerator();
-                if (ie != null)
+                foreach (var name in stlElementInfo.Attributes.AllKeys)
                 {
-                    while (ie.MoveNext())
-                    {
-                        var attr = (XmlAttribute)ie.Current;
-                        var name = attr.Name;
+                    var value = stlElementInfo.Attributes[name];
 
-                        if (StringUtils.EqualsIgnoreCase(name, Type.Name))
-                        {
-                            type = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, Text.Name))
-                        {
-                            text = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, ListNum.Name))
-                        {
-                            listNum = TranslateUtils.ToInt(attr.Value, 9);
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, ListEllipsis.Name))
-                        {
-                            listEllipsis = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, LinkClass.Name))
-                        {
-                            linkClass = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, TextClass.Name))
-                        {
-                            textClass = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, HasLr.Name))
-                        {
-                            hasLr = TranslateUtils.ToBool(attr.Value);
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, LStr.Name))
-                        {
-                            lStr = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, RStr.Name))
-                        {
-                            rStr = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, AlwaysA.Name))
-                        {
-                            alwaysA = TranslateUtils.ToBool(attr.Value);
-                        }
-                        else
-                        {
-                            attributes[name] = attr.Value;
-                        }
+                    if (StringUtils.EqualsIgnoreCase(name, Type))
+                    {
+                        type = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, Text))
+                    {
+                        text = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, ListNum))
+                    {
+                        listNum = TranslateUtils.ToInt(value, 9);
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, ListEllipsis))
+                    {
+                        listEllipsis = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, LinkClass))
+                    {
+                        linkClass = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, TextClass))
+                    {
+                        textClass = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, HasLr))
+                    {
+                        hasLr = TranslateUtils.ToBool(value);
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, LStr))
+                    {
+                        lStr = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, RStr))
+                    {
+                        rStr = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, AlwaysA))
+                    {
+                        alwaysA = TranslateUtils.ToBool(value);
+                    }
+                    else
+                    {
+                        attributes[name] = value;
                     }
                 }
 
                 var successTemplateString = string.Empty;
                 var failureTemplateString = string.Empty;
 
-                if (!string.IsNullOrEmpty(node.InnerXml))
+                if (!string.IsNullOrEmpty(stlElementInfo.InnerHtml))
                 {
-                    var stlElementList = StlParserUtility.GetStlElementList(node.InnerXml);
+                    var stlElementList = StlParserUtility.GetStlElementList(stlElementInfo.InnerHtml);
                     if (stlElementList.Count > 0)
                     {
                         foreach (var theStlElement in stlElementList)
                         {
                             if (StlParserUtility.IsSpecifiedStlElement(theStlElement, StlYes.ElementName) || StlParserUtility.IsSpecifiedStlElement(theStlElement, StlYes.ElementName2))
                             {
-                                successTemplateString = StlParserUtility.GetInnerXml(theStlElement, true);
+                                successTemplateString = StlParserUtility.GetInnerHtml(theStlElement);
                             }
                             else if (StlParserUtility.IsSpecifiedStlElement(theStlElement, StlNo.ElementName) || StlParserUtility.IsSpecifiedStlElement(theStlElement, StlNo.ElementName2))
                             {
-                                failureTemplateString = StlParserUtility.GetInnerXml(theStlElement, true);
+                                failureTemplateString = StlParserUtility.GetInnerHtml(theStlElement);
                             }
                         }
                     }
                     if (string.IsNullOrEmpty(successTemplateString) && string.IsNullOrEmpty(failureTemplateString))
                     {
-                        successTemplateString = failureTemplateString = node.InnerXml;
+                        successTemplateString = failureTemplateString = stlElementInfo.InnerHtml;
                     }
                 }
 
@@ -716,7 +719,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         {
                             var pageHyperLink = new HyperLink();
                             ControlUtils.AddAttributesIfNotExists(pageHyperLink, attributes);
-                            pageHyperLink.NavigateUrl = PageUtils.UnclickedUrl;
+                            pageHyperLink.NavigateUrl = PageUtils.UnClickedUrl;
                             pageHyperLink.Attributes.Add("onclick", clickString);
                             pageHyperLink.Text = text;
                             if (!string.IsNullOrEmpty(linkClass))
@@ -730,7 +733,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                     {
                         if (!string.IsNullOrEmpty(failureTemplateString))
                         {
-                            parsedContent = GetParsedContent(failureTemplateString, PageUtils.UnclickedUrl, Convert.ToString(currentPageIndex + 1), pageInfo);
+                            parsedContent = GetParsedContent(failureTemplateString, PageUtils.UnClickedUrl, Convert.ToString(currentPageIndex + 1), pageInfo);
                         }
                         else
                         {
@@ -836,7 +839,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         else
                         {
                             pageBuilder.Append(
-                                $@"<a href=""{PageUtils.UnclickedUrl}"" onclick=""{clickString}"" {TranslateUtils
+                                $@"<a href=""{PageUtils.UnClickedUrl}"" onclick=""{clickString}"" {TranslateUtils
                                     .ToAttributesString(attributes)}>{listEllipsis}</a>");
                         }
                     }
@@ -853,7 +856,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                             }
                             else
                             {
-                                var pageHyperLink = new HyperLink {NavigateUrl = PageUtils.UnclickedUrl};
+                                var pageHyperLink = new HyperLink {NavigateUrl = PageUtils.UnClickedUrl};
                                 pageHyperLink.Attributes.Add("onclick", clickString);
                                 pageHyperLink.Text = $"{leftText}{index}{rightText}";
                                 if (!string.IsNullOrEmpty(linkClass))
@@ -867,7 +870,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         {
                             if (!string.IsNullOrEmpty(failureTemplateString))
                             {
-                                pageBuilder.Append(GetParsedContent(failureTemplateString, PageUtils.UnclickedUrl, index.ToString(), pageInfo));
+                                pageBuilder.Append(GetParsedContent(failureTemplateString, PageUtils.UnClickedUrl, index.ToString(), pageInfo));
                             }
                             else
                             {
@@ -892,7 +895,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         else
                         {
                             pageBuilder.Append(
-                                $@"<a href=""{PageUtils.UnclickedUrl}"" onclick=""{clickString}"" {TranslateUtils
+                                $@"<a href=""{PageUtils.UnClickedUrl}"" onclick=""{clickString}"" {TranslateUtils
                                     .ToAttributesString(attributes)}>{listEllipsis}</a>");
                         }
                     }
@@ -938,7 +941,7 @@ namespace SiteServer.CMS.StlParser.StlElement
             }
             catch (Exception ex)
             {
-                parsedContent = StlParserUtility.GetStlErrorMessage(ElementName, stlElement, ex);
+                parsedContent = LogUtils.AddStlErrorLog(pageInfo, ElementName, stlElement, ex);
             }
 
             return parsedContent;
@@ -989,7 +992,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         }
                     }
 
-                    parsedContent = isHyperlink ? $"javascript:{clickString}" : PageUtils.UnclickedUrl;
+                    parsedContent = isHyperlink ? $"javascript:{clickString}" : PageUtils.UnClickedUrl;
                 }
                 else if (type.ToLower().Equals(TypeCurrentPageIndex.ToLower()))//当前页索引
                 {
@@ -1006,7 +1009,7 @@ namespace SiteServer.CMS.StlParser.StlElement
             }
             catch (Exception ex)
             {
-                parsedContent = StlParserUtility.GetStlErrorMessage(ElementName, stlEntity, ex);
+                parsedContent = LogUtils.AddStlErrorLog(pageInfo, ElementName, stlEntity, ex);
             }
 
             return parsedContent;
@@ -1020,11 +1023,9 @@ namespace SiteServer.CMS.StlParser.StlElement
             {
                 var contextInfo = new ContextInfo(pageInfo);
 
-                var xmlDocument = StlParserUtility.GetXmlDocument(stlElement, true);
-                XmlNode node = xmlDocument.DocumentElement;
-                node = node?.FirstChild;
-                var label = node?.Name;
-                if (!StringUtils.EqualsIgnoreCase(label, ElementName)) return string.Empty;
+                var stlElementInfo = StlParserUtility.ParseStlElement(stlElement);
+
+                if (!StringUtils.EqualsIgnoreCase(stlElementInfo.Name, ElementName)) return string.Empty;
 
                 var text = string.Empty;
                 var type = string.Empty;
@@ -1037,86 +1038,81 @@ namespace SiteServer.CMS.StlParser.StlElement
                 var lStr = string.Empty;
                 var rStr = string.Empty;
                 var alwaysA = true;
-                var attributes = new Dictionary<string, string>();
+                var attributes = TranslateUtils.NewIgnoreCaseNameValueCollection();
 
-                var ie = node?.Attributes?.GetEnumerator();
-                if (ie != null)
+                foreach (var name in stlElementInfo.Attributes.AllKeys)
                 {
-                    while (ie.MoveNext())
-                    {
-                        var attr = (XmlAttribute)ie.Current;
-                        var name = attr.Name;
+                    var value = stlElementInfo.Attributes[name];
 
-                        if (StringUtils.EqualsIgnoreCase(name, Type.Name))
-                        {
-                            type = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, Text.Name))
-                        {
-                            text = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, ListNum.Name))
-                        {
-                            listNum = TranslateUtils.ToInt(attr.Value, 9);
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, ListEllipsis.Name))
-                        {
-                            listEllipsis = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, LinkClass.Name))
-                        {
-                            linkClass = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, TextClass.Name))
-                        {
-                            textClass = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, HasLr.Name))
-                        {
-                            hasLr = TranslateUtils.ToBool(attr.Value);
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, LStr.Name))
-                        {
-                            lStr = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, RStr.Name))
-                        {
-                            rStr = attr.Value;
-                        }
-                        else if (StringUtils.EqualsIgnoreCase(name, AlwaysA.Name))
-                        {
-                            alwaysA = TranslateUtils.ToBool(attr.Value);
-                        }
-                        else
-                        {
-                            attributes[name] = attr.Value;
-                        }
+                    if (StringUtils.EqualsIgnoreCase(name, Type))
+                    {
+                        type = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, Text))
+                    {
+                        text = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, ListNum))
+                    {
+                        listNum = TranslateUtils.ToInt(value, 9);
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, ListEllipsis))
+                    {
+                        listEllipsis = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, LinkClass))
+                    {
+                        linkClass = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, TextClass))
+                    {
+                        textClass = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, HasLr))
+                    {
+                        hasLr = TranslateUtils.ToBool(value);
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, LStr))
+                    {
+                        lStr = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, RStr))
+                    {
+                        rStr = value;
+                    }
+                    else if (StringUtils.EqualsIgnoreCase(name, AlwaysA))
+                    {
+                        alwaysA = TranslateUtils.ToBool(value);
+                    }
+                    else
+                    {
+                        attributes[name] = value;
                     }
                 }
 
                 var successTemplateString = string.Empty;
                 var failureTemplateString = string.Empty;
 
-                if (!string.IsNullOrEmpty(node.InnerXml))
+                if (!string.IsNullOrEmpty(stlElementInfo.InnerHtml))
                 {
-                    var stlElementList = StlParserUtility.GetStlElementList(node.InnerXml);
+                    var stlElementList = StlParserUtility.GetStlElementList(stlElementInfo.InnerHtml);
                     if (stlElementList.Count > 0)
                     {
                         foreach (var theStlElement in stlElementList)
                         {
                             if (StlParserUtility.IsSpecifiedStlElement(theStlElement, StlYes.ElementName) || StlParserUtility.IsSpecifiedStlElement(theStlElement, StlYes.ElementName2))
                             {
-                                successTemplateString = StlParserUtility.GetInnerXml(theStlElement, true);
+                                successTemplateString = StlParserUtility.GetInnerHtml(theStlElement);
                             }
                             else if (StlParserUtility.IsSpecifiedStlElement(theStlElement, StlNo.ElementName) || StlParserUtility.IsSpecifiedStlElement(theStlElement, StlNo.ElementName2))
                             {
-                                failureTemplateString = StlParserUtility.GetInnerXml(theStlElement, true);
+                                failureTemplateString = StlParserUtility.GetInnerHtml(theStlElement);
                             }
                         }
                     }
                     if (string.IsNullOrEmpty(successTemplateString) && string.IsNullOrEmpty(failureTemplateString))
                     {
-                        successTemplateString = failureTemplateString = node.InnerXml;
+                        successTemplateString = failureTemplateString = stlElementInfo.InnerHtml;
                     }
                 }
 
@@ -1198,7 +1194,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         {
                             var pageHyperLink = new HyperLink();
                             ControlUtils.AddAttributesIfNotExists(pageHyperLink, attributes);
-                            pageHyperLink.NavigateUrl = PageUtils.UnclickedUrl;
+                            pageHyperLink.NavigateUrl = PageUtils.UnClickedUrl;
                             pageHyperLink.Attributes.Add("onclick", jsMethod + ";return false;");
                             pageHyperLink.Text = text;
                             if (!string.IsNullOrEmpty(linkClass))
@@ -1212,7 +1208,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                     {
                         if (!string.IsNullOrEmpty(failureTemplateString))
                         {
-                            parsedContent = GetParsedContent(failureTemplateString, PageUtils.UnclickedUrl, Convert.ToString(currentPageIndex + 1), pageInfo);
+                            parsedContent = GetParsedContent(failureTemplateString, PageUtils.UnClickedUrl, Convert.ToString(currentPageIndex + 1), pageInfo);
                         }
                         else
                         {
@@ -1316,7 +1312,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         else
                         {
                             pageBuilder.Append(
-                                $@"<a href=""{PageUtils.UnclickedUrl}"" onclick=""{jsMethod};return false;"" {TranslateUtils
+                                $@"<a href=""{PageUtils.UnClickedUrl}"" onclick=""{jsMethod};return false;"" {TranslateUtils
                                     .ToAttributesString(attributes)}>{listEllipsis}</a>");
                         }
                     }
@@ -1334,7 +1330,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                             }
                             else
                             {
-                                var pageHyperLink = new HyperLink {NavigateUrl = PageUtils.UnclickedUrl};
+                                var pageHyperLink = new HyperLink {NavigateUrl = PageUtils.UnClickedUrl};
                                 pageHyperLink.Attributes.Add("onclick", jsMethod + ";return false;");
                                 pageHyperLink.Text = $"{leftText}{index}{rightText}";
                                 if (!string.IsNullOrEmpty(linkClass))
@@ -1348,7 +1344,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         {
                             if (!string.IsNullOrEmpty(failureTemplateString))
                             {
-                                pageBuilder.Append(GetParsedContent(failureTemplateString, PageUtils.UnclickedUrl, Convert.ToString(currentPageIndex + 1), pageInfo));
+                                pageBuilder.Append(GetParsedContent(failureTemplateString, PageUtils.UnClickedUrl, Convert.ToString(currentPageIndex + 1), pageInfo));
                             }
                             else
                             {
@@ -1372,7 +1368,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         else
                         {
                             pageBuilder.Append(
-                                $@"<a href=""{PageUtils.UnclickedUrl}"" onclick=""{jsMethod};return false;"" {TranslateUtils
+                                $@"<a href=""{PageUtils.UnClickedUrl}"" onclick=""{jsMethod};return false;"" {TranslateUtils
                                     .ToAttributesString(attributes)}>{listEllipsis}</a>");
                         }
                     }
@@ -1395,12 +1391,12 @@ namespace SiteServer.CMS.StlParser.StlElement
 
                     for (var index = 1; index <= pageCount; index++)
                     {
-                        var listitem = new ListItem(index.ToString(), index.ToString());
+                        var listItem = new ListItem(index.ToString(), index.ToString());
                         if (currentPageIndex + 1 == index)
                         {
-                            listitem.Selected = true;
+                            listItem.Selected = true;
                         }
-                        selectControl.Items.Add(listitem);
+                        selectControl.Items.Add(listItem);
                     }
 
                     parsedContent = ControlUtils.GetControlRenderHtml(selectControl);
@@ -1413,7 +1409,7 @@ namespace SiteServer.CMS.StlParser.StlElement
             }
             catch (Exception ex)
             {
-                parsedContent = StlParserUtility.GetStlErrorMessage(ElementName, stlElement, ex);
+                parsedContent = LogUtils.AddStlErrorLog(pageInfo, ElementName, stlElement, ex);
             }
 
             return parsedContent;
@@ -1466,7 +1462,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         }
                     }
 
-                    parsedContent = isHyperlink ? $"javascript:{jsMethod}" : PageUtils.UnclickedUrl;
+                    parsedContent = isHyperlink ? $"javascript:{jsMethod}" : PageUtils.UnClickedUrl;
                 }
                 else if (type.ToLower().Equals(TypeCurrentPageIndex.ToLower()))//当前页索引
                 {
@@ -1483,7 +1479,7 @@ namespace SiteServer.CMS.StlParser.StlElement
             }
             catch (Exception ex)
             {
-                parsedContent = StlParserUtility.GetStlErrorMessage(ElementName, stlEntity, ex);
+                parsedContent = LogUtils.AddStlErrorLog(pageInfo, ElementName, stlEntity, ex);
             }
 
             return parsedContent;

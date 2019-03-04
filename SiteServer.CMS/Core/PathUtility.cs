@@ -2,10 +2,12 @@
 using System.Collections;
 using System.Collections.Specialized;
 using SiteServer.Utils;
-using SiteServer.CMS.Model;
 using System.Text.RegularExpressions;
-using SiteServer.CMS.Model.Enumerations;
-using SiteServer.CMS.StlParser.Cache;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
+using SiteServer.CMS.Caches.Stl;
+using SiteServer.CMS.Core.Enumerations;
+using SiteServer.CMS.Database.Models;
 using SiteServer.Plugin;
 using SiteServer.Utils.Enumerations;
 
@@ -91,18 +93,18 @@ namespace SiteServer.CMS.Core
 
         public static string GetUploadDirectoryPath(SiteInfo siteInfo, DateTime datetime, string fileExtension)
         {
-            var uploadDateFormatString = siteInfo.Additional.FileUploadDateFormatString;
-            var uploadDirectoryName = siteInfo.Additional.FileUploadDirectoryName;
+            var uploadDateFormatString = siteInfo.FileUploadDateFormatString;
+            var uploadDirectoryName = siteInfo.FileUploadDirectoryName;
 
             if (IsImageExtenstionAllowed(siteInfo, fileExtension))
             {
-                uploadDateFormatString = siteInfo.Additional.ImageUploadDateFormatString;
-                uploadDirectoryName = siteInfo.Additional.ImageUploadDirectoryName;
+                uploadDateFormatString = siteInfo.ImageUploadDateFormatString;
+                uploadDirectoryName = siteInfo.ImageUploadDirectoryName;
             }
             else if (IsVideoExtenstionAllowed(siteInfo, fileExtension))
             {
-                uploadDateFormatString = siteInfo.Additional.VideoUploadDateFormatString;
-                uploadDirectoryName = siteInfo.Additional.VideoUploadDirectoryName;
+                uploadDateFormatString = siteInfo.VideoUploadDateFormatString;
+                uploadDirectoryName = siteInfo.VideoUploadDirectoryName;
             }
 
             string directoryPath;
@@ -136,27 +138,27 @@ namespace SiteServer.CMS.Core
 
             if (uploadType == EUploadType.Image)
             {
-                uploadDateFormatString = siteInfo.Additional.ImageUploadDateFormatString;
-                uploadDirectoryName = siteInfo.Additional.ImageUploadDirectoryName;
+                uploadDateFormatString = siteInfo.ImageUploadDateFormatString;
+                uploadDirectoryName = siteInfo.ImageUploadDirectoryName;
             }
             else if (uploadType == EUploadType.Video)
             {
-                uploadDateFormatString = siteInfo.Additional.VideoUploadDateFormatString;
-                uploadDirectoryName = siteInfo.Additional.VideoUploadDirectoryName;
+                uploadDateFormatString = siteInfo.VideoUploadDateFormatString;
+                uploadDirectoryName = siteInfo.VideoUploadDirectoryName;
             }
             else if (uploadType == EUploadType.File)
             {
-                uploadDateFormatString = siteInfo.Additional.FileUploadDateFormatString;
-                uploadDirectoryName = siteInfo.Additional.FileUploadDirectoryName;
+                uploadDateFormatString = siteInfo.FileUploadDateFormatString;
+                uploadDirectoryName = siteInfo.FileUploadDirectoryName;
             }
             else if (uploadType == EUploadType.Special)
             {
-                uploadDateFormatString = siteInfo.Additional.FileUploadDateFormatString;
+                uploadDateFormatString = siteInfo.FileUploadDateFormatString;
                 uploadDirectoryName = "/Special";
             }
             else if (uploadType == EUploadType.AdvImage)
             {
-                uploadDateFormatString = siteInfo.Additional.FileUploadDateFormatString;
+                uploadDateFormatString = siteInfo.FileUploadDateFormatString;
                 uploadDirectoryName = "/AdvImage";
             }
 
@@ -183,14 +185,14 @@ namespace SiteServer.CMS.Core
         {
             var fileExtension = PathUtils.GetExtension(filePath);
 
-            var isUploadChangeFileName = siteInfo.Additional.IsFileUploadChangeFileName;
+            var isUploadChangeFileName = siteInfo.IsFileUploadChangeFileName;
             if (IsImageExtenstionAllowed(siteInfo, fileExtension))
             {
-                isUploadChangeFileName = siteInfo.Additional.IsImageUploadChangeFileName;
+                isUploadChangeFileName = siteInfo.IsImageUploadChangeFileName;
             }
             else if (IsVideoExtenstionAllowed(siteInfo, fileExtension))
             {
-                isUploadChangeFileName = siteInfo.Additional.IsVideoUploadChangeFileName;
+                isUploadChangeFileName = siteInfo.IsVideoUploadChangeFileName;
             }
 
             return GetUploadFileName(siteInfo, filePath, isUploadChangeFileName);
@@ -198,58 +200,22 @@ namespace SiteServer.CMS.Core
 
         public static string GetUploadFileName(SiteInfo siteInfo, string filePath, bool isUploadChangeFileName)
         {
-            string retval;
+            var retVal = isUploadChangeFileName
+                ? $"{StringUtils.GetShortGuid(false)}{PathUtils.GetExtension(filePath)}"
+                : PathUtils.GetFileName(filePath);
 
-            if (isUploadChangeFileName)
-            {
-                var strDateTime = StringUtils.GetShortGuid(false);
-                retval = $"{strDateTime}{PathUtils.GetExtension(filePath)}";
-            }
-            else
-            {
-                retval = PathUtils.GetFileName(filePath);
-            }
-
-            retval = StringUtils.ReplaceIgnoreCase(retval, ";", string.Empty);
-            return retval;
+            retVal = StringUtils.ReplaceIgnoreCase(retVal, "as", string.Empty);
+            retVal = StringUtils.ReplaceIgnoreCase(retVal, ";", string.Empty);
+            return retVal;
         }
 
         public static string GetUploadSpecialName(SiteInfo siteInfo, string filePath, bool isUploadChangeFileName)
         {
-            string retval;
+            var retVal = isUploadChangeFileName ? $"{StringUtils.GetShortGuid(false)}{PathUtils.GetExtension(filePath)}" : PathUtils.GetFileName(filePath);
 
-            if (isUploadChangeFileName)
-            {
-                string strDateTime = StringUtils.GetShortGuid(false);
-                retval = $"{strDateTime}{PathUtils.GetExtension(filePath)}";
-            }
-            else
-            {
-                retval = PathUtils.GetFileName(filePath);
-            }
-
-            retval = StringUtils.ReplaceIgnoreCase(retval, "as", string.Empty);
-            retval = StringUtils.ReplaceIgnoreCase(retval, ";", string.Empty);
-            return retval;
-        }
-
-        public static string GetUploadAdvImageName(SiteInfo siteInfo, string filePath, bool isUploadChangeFileName)
-        {
-            string retval;
-
-            if (isUploadChangeFileName)
-            {
-                string strDateTime = StringUtils.GetShortGuid(false);
-                retval = $"{strDateTime}{PathUtils.GetExtension(filePath)}";
-            }
-            else
-            {
-                retval = PathUtils.GetFileName(filePath);
-            }
-
-            retval = StringUtils.ReplaceIgnoreCase(retval, "as", string.Empty);
-            retval = StringUtils.ReplaceIgnoreCase(retval, ";", string.Empty);
-            return retval;
+            retVal = StringUtils.ReplaceIgnoreCase(retVal, "as", string.Empty);
+            retVal = StringUtils.ReplaceIgnoreCase(retVal, ";", string.Empty);
+            return retVal;
         }
 
         public static SiteInfo GetSiteInfo(string path)
@@ -264,7 +230,7 @@ namespace SiteServer.CMS.Core
             SiteInfo headquarter = null;
             foreach (var siteInfo in siteInfoList)
             {
-                if (siteInfo.IsRoot)
+                if (siteInfo.Root)
                 {
                     headquarter = siteInfo;
                 }
@@ -294,7 +260,7 @@ namespace SiteServer.CMS.Core
             var siteInfoList = SiteManager.GetSiteInfoList();
             foreach (var siteInfo in siteInfoList)
             {
-                if (siteInfo?.IsRoot!= false) continue;
+                if (siteInfo?.Root!= false) continue;
 
                 if (StringUtils.Contains(directoryDir, siteInfo.SiteDir.ToLower()))
                 {
@@ -321,11 +287,11 @@ namespace SiteServer.CMS.Core
             else
             {
                 var siteDir = GetCurrentSiteDir();
-                siteId = !string.IsNullOrEmpty(siteDir) ? Site.GetSiteIdBySiteDir(siteDir) : Site.GetSiteIdByIsRoot();
+                siteId = !string.IsNullOrEmpty(siteDir) ? StlSiteCache.GetSiteIdBySiteDir(siteDir) : StlSiteCache.GetSiteIdByIsRoot();
 
                 if (siteId == 0)
                 {
-                    siteId = Site.GetSiteIdByIsRoot();
+                    siteId = StlSiteCache.GetSiteIdByIsRoot();
                 }
             }
             return siteId;
@@ -360,7 +326,7 @@ namespace SiteServer.CMS.Core
 
             if (siteInfo != null)
             {
-                resolvedPath = siteInfo.IsRoot ? string.Concat("~", virtualPath.Substring(1)) : PageUtils.Combine(siteInfo.SiteDir, virtualPath.Substring(1));
+                resolvedPath = siteInfo.Root ? string.Concat("~", virtualPath.Substring(1)) : PageUtils.Combine(siteInfo.SiteDir, virtualPath.Substring(1));
             }
             return PathUtils.MapPath(resolvedPath);
         }
@@ -382,7 +348,7 @@ namespace SiteServer.CMS.Core
 
             if (siteInfo != null)
             {
-                resolvedPath = siteInfo.IsRoot ? string.Concat("~", virtualPath.Substring(1)) : PageUtils.Combine(siteInfo.SiteDir, virtualPath.Substring(1));
+                resolvedPath = siteInfo.Root ? string.Concat("~", virtualPath.Substring(1)) : PageUtils.Combine(siteInfo.SiteDir, virtualPath.Substring(1));
             }
             return PathUtils.MapPath(resolvedPath);
         }
@@ -420,7 +386,7 @@ namespace SiteServer.CMS.Core
             {
                 if (!PageUtils.IsProtocolUrl(originalImageSrc) ||
                     StringUtils.StartsWithIgnoreCase(originalImageSrc, PageUtils.ApplicationPath) ||
-                    StringUtils.StartsWithIgnoreCase(originalImageSrc, siteInfo.Additional.WebUrl))
+                    StringUtils.StartsWithIgnoreCase(originalImageSrc, siteInfo.WebUrl))
                     continue;
                 var fileExtName = PageUtils.GetExtensionFromUrl(originalImageSrc);
                 if (!EFileSystemTypeUtils.IsImageOrFlashOrPlayer(fileExtName)) continue;
@@ -547,12 +513,11 @@ namespace SiteServer.CMS.Core
                     {LowerChannelIndex, "栏目索引(小写)"}
                 };
 
-                var relatedIdentities = RelatedIdentities.GetChannelRelatedIdentities(siteInfo.Id, channelId);
-
-                var styleInfoList = TableStyleManager.GetTableStyleInfoList(DataProvider.ChannelDao.TableName, relatedIdentities);
+                var channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+                var styleInfoList = TableStyleManager.GetChannelStyleInfoList(channelInfo);
                 foreach (var styleInfo in styleInfoList)
                 {
-                    if (styleInfo.InputType == InputType.Text)
+                    if (styleInfo.Type == InputType.Text)
                     {
                         dictionary.Add($@"{{@{StringUtils.LowerFirst(styleInfo.AttributeName)}}}", styleInfo.DisplayName);
                         dictionary.Add($@"{{@lower{styleInfo.AttributeName}}}", styleInfo.DisplayName + "(小写)");
@@ -575,7 +540,7 @@ namespace SiteServer.CMS.Core
                 var filePath = channelFilePathRule.Trim();
                 const string regex = "(?<element>{@[^}]+})";
                 var elements = RegexUtils.GetContents("element", regex, filePath);
-                ChannelInfo nodeInfo = null;
+                ChannelInfo channelInfo = null;
 
                 foreach (var element in elements)
                 {
@@ -587,42 +552,42 @@ namespace SiteServer.CMS.Core
                     }
                     else if (StringUtils.EqualsIgnoreCase(element, Year))
                     {
-                        if (nodeInfo == null) nodeInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
-                        value = nodeInfo.AddDate.Year.ToString();
+                        if (channelInfo == null) channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+                        if (channelInfo.AddDate != null) value = channelInfo.AddDate.Value.Year.ToString();
                     }
                     else if (StringUtils.EqualsIgnoreCase(element, Month))
                     {
-                        if (nodeInfo == null) nodeInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
-                        value = nodeInfo.AddDate.Month.ToString();
+                        if (channelInfo == null) channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+                        if (channelInfo.AddDate != null) value = channelInfo.AddDate.Value.Month.ToString();
                     }
                     else if (StringUtils.EqualsIgnoreCase(element, Day))
                     {
-                        if (nodeInfo == null) nodeInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
-                        value = nodeInfo.AddDate.Day.ToString();
+                        if (channelInfo == null) channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+                        if (channelInfo.AddDate != null) value = channelInfo.AddDate.Value.Day.ToString();
                     }
                     else if (StringUtils.EqualsIgnoreCase(element, Hour))
                     {
-                        if (nodeInfo == null) nodeInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
-                        value = nodeInfo.AddDate.Hour.ToString();
+                        if (channelInfo == null) channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+                        if (channelInfo.AddDate != null) value = channelInfo.AddDate.Value.Hour.ToString();
                     }
                     else if (StringUtils.EqualsIgnoreCase(element, Minute))
                     {
-                        if (nodeInfo == null) nodeInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
-                        value = nodeInfo.AddDate.Minute.ToString();
+                        if (channelInfo == null) channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+                        if (channelInfo.AddDate != null) value = channelInfo.AddDate.Value.Minute.ToString();
                     }
                     else if (StringUtils.EqualsIgnoreCase(element, Second))
                     {
-                        if (nodeInfo == null) nodeInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
-                        value = nodeInfo.AddDate.Second.ToString();
+                        if (channelInfo == null) channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+                        if (channelInfo.AddDate != null) value = channelInfo.AddDate.Value.Second.ToString();
                     }
                     else if (StringUtils.EqualsIgnoreCase(element, Sequence))
                     {
-                        value = Node.GetSequence(siteInfo.Id, channelId).ToString();
+                        value = StlChannelCache.GetSequence(siteInfo.Id, channelId).ToString();
                     }
                     else if (StringUtils.EqualsIgnoreCase(element, ParentRule))
                     {
-                        if (nodeInfo == null) nodeInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
-                        var parentInfo = ChannelManager.GetChannelInfo(siteInfo.Id, nodeInfo.ParentId);
+                        if (channelInfo == null) channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+                        var parentInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelInfo.ParentId);
                         if (parentInfo != null)
                         {
                             var parentRule = GetChannelFilePathRule(siteInfo, parentInfo.Id);
@@ -631,22 +596,22 @@ namespace SiteServer.CMS.Core
                     }
                     else if (StringUtils.EqualsIgnoreCase(element, ChannelName))
                     {
-                        if (nodeInfo == null) nodeInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
-                        value = nodeInfo.ChannelName;
+                        if (channelInfo == null) channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+                        value = channelInfo.ChannelName;
                     }
                     else if (StringUtils.EqualsIgnoreCase(element, LowerChannelName))
                     {
-                        if (nodeInfo == null) nodeInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
-                        value = nodeInfo.ChannelName.ToLower();
+                        if (channelInfo == null) channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+                        value = channelInfo.ChannelName.ToLower();
                     }
                     else if (StringUtils.EqualsIgnoreCase(element, LowerChannelIndex))
                     {
-                        if (nodeInfo == null) nodeInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
-                        value = nodeInfo.IndexName.ToLower();
+                        if (channelInfo == null) channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+                        value = channelInfo.IndexName.ToLower();
                     }
                     else
                     {
-                        if (nodeInfo == null) nodeInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+                        if (channelInfo == null) channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
                         var attributeName = element.Replace("{@", string.Empty).Replace("}", string.Empty);
 
                         var isLower = false;
@@ -656,7 +621,7 @@ namespace SiteServer.CMS.Core
                             attributeName = attributeName.Substring(5);
                         }
 
-                        value = nodeInfo.Additional.GetString(attributeName);
+                        value = channelInfo.Get(attributeName, string.Empty);
 
                         if (isLower)
                         {
@@ -720,13 +685,11 @@ namespace SiteServer.CMS.Core
                     {LowerChannelIndex, "栏目索引(小写)"}
                 };
 
-                var tableName = ChannelManager.GetTableName(siteInfo, channelId);
-                var relatedIdentities = RelatedIdentities.GetChannelRelatedIdentities(siteInfo.Id, channelId);
-
-                var styleInfoList = TableStyleManager.GetTableStyleInfoList(tableName, relatedIdentities);
+                var channelInfo = ChannelManager.GetChannelInfo(siteInfo.Id, channelId);
+                var styleInfoList = TableStyleManager.GetContentStyleInfoList(siteInfo, channelInfo);
                 foreach (var styleInfo in styleInfoList)
                 {
-                    if (styleInfo.InputType == InputType.Text)
+                    if (styleInfo.Type == InputType.Text)
                     {
                         dictionary.Add($@"{{@{StringUtils.LowerFirst(styleInfo.AttributeName)}}}", styleInfo.DisplayName);
                         dictionary.Add($@"{{@lower{styleInfo.AttributeName}}}", styleInfo.DisplayName + "(小写)");
@@ -739,25 +702,24 @@ namespace SiteServer.CMS.Core
             public static string Parse(SiteInfo siteInfo, int channelId, int contentId)
             {
                 var contentFilePathRule = GetContentFilePathRule(siteInfo, channelId);
-                var tableName = ChannelManager.GetTableName(siteInfo, channelId);
-                var contentInfo = Content.GetContentInfo(tableName, contentId);
+                var contentInfo = ContentManager.GetContentInfo(siteInfo, channelId, contentId);
                 var filePath = ParseContentPath(siteInfo, channelId, contentInfo, contentFilePathRule);
                 return filePath;
             }
 
-            public static string Parse(SiteInfo siteInfo, int channelId, IContentInfo contentInfo)
+            public static string Parse(SiteInfo siteInfo, int channelId, ContentInfo contentInfo)
             {
                 var contentFilePathRule = GetContentFilePathRule(siteInfo, channelId);
                 var filePath = ParseContentPath(siteInfo, channelId, contentInfo, contentFilePathRule);
                 return filePath;
             }
 
-            private static string ParseContentPath(SiteInfo siteInfo, int channelId, IContentInfo contentInfo, string contentFilePathRule)
+            private static string ParseContentPath(SiteInfo siteInfo, int channelId, ContentInfo contentInfo, string contentFilePathRule)
             {
                 var filePath = contentFilePathRule.Trim();
                 var regex = "(?<element>{@[^}]+})";
                 var elements = RegexUtils.GetContents("element", regex, filePath);
-                var addDate = DateTime.MinValue;
+                var addDate = contentInfo.AddDate;
                 var contentId = contentInfo.Id;
                 foreach (var element in elements)
                 {
@@ -774,7 +736,7 @@ namespace SiteServer.CMS.Core
                     else if (StringUtils.EqualsIgnoreCase(element, Sequence))
                     {
                         var tableName = ChannelManager.GetTableName(siteInfo, channelId);
-                        value = Content.GetSequence(tableName, channelId, contentId).ToString();
+                        value = StlContentCache.GetSequence(tableName, channelId, contentId).ToString();
                     }
                     else if (StringUtils.EqualsIgnoreCase(element, ParentRule))//继承父级设置 20151113 sessionliang
                     {
@@ -818,39 +780,33 @@ namespace SiteServer.CMS.Core
                             value = nodeInfo.IndexName.ToLower();
                         }
                     }
-                    else if (StringUtils.EqualsIgnoreCase(element, Year) || StringUtils.EqualsIgnoreCase(element, Month) || StringUtils.EqualsIgnoreCase(element, Day) || StringUtils.EqualsIgnoreCase(element, Hour) || StringUtils.EqualsIgnoreCase(element, Minute) || StringUtils.EqualsIgnoreCase(element, Second))
+                    else if (addDate.HasValue && (StringUtils.EqualsIgnoreCase(element, Year) || StringUtils.EqualsIgnoreCase(element, Month) || StringUtils.EqualsIgnoreCase(element, Day) || StringUtils.EqualsIgnoreCase(element, Hour) || StringUtils.EqualsIgnoreCase(element, Minute) || StringUtils.EqualsIgnoreCase(element, Second)))
                     {
-                        if (addDate == DateTime.MinValue)
-                        {
-                            var tableName = ChannelManager.GetTableName(siteInfo, channelId);
-                            addDate = Content.GetAddDate(tableName, contentId);
-                        }
-
                         if (StringUtils.EqualsIgnoreCase(element, Year))
                         {
-                            value = addDate.Year.ToString();
+                            value = addDate.Value.Year.ToString();
                         }
                         else if (StringUtils.EqualsIgnoreCase(element, Month))
                         {
-                            value = addDate.Month.ToString("D2");
+                            value = addDate.Value.Month.ToString("D2");
                             //value = addDate.ToString("MM");
                         }
                         else if (StringUtils.EqualsIgnoreCase(element, Day))
                         {
-                            value = addDate.Day.ToString("D2");
+                            value = addDate.Value.Day.ToString("D2");
                             //value = addDate.ToString("dd");
                         }
                         else if (StringUtils.EqualsIgnoreCase(element, Hour))
                         {
-                            value = addDate.Hour.ToString();
+                            value = addDate.Value.Hour.ToString();
                         }
                         else if (StringUtils.EqualsIgnoreCase(element, Minute))
                         {
-                            value = addDate.Minute.ToString();
+                            value = addDate.Value.Minute.ToString();
                         }
                         else if (StringUtils.EqualsIgnoreCase(element, Second))
                         {
-                            value = addDate.Second.ToString();
+                            value = addDate.Value.Second.ToString();
                         }
                     }
                     else
@@ -864,7 +820,7 @@ namespace SiteServer.CMS.Core
                             attributeName = attributeName.Substring(5);
                         }
 
-                        value = contentInfo.GetString(attributeName);
+                        value = contentInfo.Get<string>(attributeName);
                         if (isLower)
                         {
                             value = value.ToLower();
@@ -912,7 +868,7 @@ namespace SiteServer.CMS.Core
             var channelFilePathRule = GetChannelFilePathRule(siteInfo.Id, channelId);
             if (string.IsNullOrEmpty(channelFilePathRule))
             {
-                channelFilePathRule = siteInfo.Additional.ChannelFilePathRule;
+                channelFilePathRule = siteInfo.ChannelFilePathRule;
 
                 if (string.IsNullOrEmpty(channelFilePathRule))
                 {
@@ -942,7 +898,7 @@ namespace SiteServer.CMS.Core
             var contentFilePathRule = GetContentFilePathRule(siteInfo.Id, channelId);
             if (string.IsNullOrEmpty(contentFilePathRule))
             {
-                contentFilePathRule = siteInfo.Additional.ContentFilePathRule;
+                contentFilePathRule = siteInfo.ContentFilePathRule;
 
                 if (string.IsNullOrEmpty(contentFilePathRule))
                 {
@@ -973,7 +929,7 @@ namespace SiteServer.CMS.Core
             if (nodeInfo.ParentId == 0)
             {
                 var templateInfo = TemplateManager.GetDefaultTemplateInfo(siteInfo.Id, TemplateType.IndexPageTemplate);
-                return GetIndexPageFilePath(siteInfo, templateInfo.CreatedFileFullName, siteInfo.IsRoot, currentPageIndex);
+                return GetIndexPageFilePath(siteInfo, templateInfo.CreatedFileFullName, siteInfo.Root, currentPageIndex);
             }
             var filePath = nodeInfo.FilePath;
 
@@ -1001,8 +957,7 @@ namespace SiteServer.CMS.Core
 
         public static string GetContentPageFilePath(SiteInfo siteInfo, int channelId, int contentId, int currentPageIndex)
         {
-            var tableName = ChannelManager.GetTableName(siteInfo, channelId);
-            var contentInfo = Content.GetContentInfo(tableName, contentId);
+            var contentInfo = ContentManager.GetContentInfo(siteInfo, channelId, contentId);
             return GetContentPageFilePath(siteInfo, channelId, contentInfo, currentPageIndex);
         }
 
@@ -1028,33 +983,33 @@ namespace SiteServer.CMS.Core
 
         public static bool IsImageExtenstionAllowed(SiteInfo siteInfo, string fileExtention)
         {
-            return PathUtils.IsFileExtenstionAllowed(siteInfo.Additional.ImageUploadTypeCollection, fileExtention);
+            return PathUtils.IsFileExtenstionAllowed(siteInfo.ImageUploadTypeCollection, fileExtention);
         }
 
         public static bool IsImageSizeAllowed(SiteInfo siteInfo, int contentLength)
         {
-            return contentLength <= siteInfo.Additional.ImageUploadTypeMaxSize * 1024;
+            return contentLength <= siteInfo.ImageUploadTypeMaxSize * 1024;
         }
 
         public static bool IsVideoExtenstionAllowed(SiteInfo siteInfo, string fileExtention)
         {
-            return PathUtils.IsFileExtenstionAllowed(siteInfo.Additional.VideoUploadTypeCollection, fileExtention);
+            return PathUtils.IsFileExtenstionAllowed(siteInfo.VideoUploadTypeCollection, fileExtention);
         }
 
         public static bool IsVideoSizeAllowed(SiteInfo siteInfo, int contentLength)
         {
-            return contentLength <= siteInfo.Additional.VideoUploadTypeMaxSize * 1024;
+            return contentLength <= siteInfo.VideoUploadTypeMaxSize * 1024;
         }
 
         public static bool IsFileExtenstionAllowed(SiteInfo siteInfo, string fileExtention)
         {
-            var typeCollection = siteInfo.Additional.FileUploadTypeCollection + "," + siteInfo.Additional.ImageUploadTypeCollection + "," + siteInfo.Additional.VideoUploadTypeCollection;
+            var typeCollection = siteInfo.FileUploadTypeCollection + "," + siteInfo.ImageUploadTypeCollection + "," + siteInfo.VideoUploadTypeCollection;
             return PathUtils.IsFileExtenstionAllowed(typeCollection, fileExtention);
         }
 
         public static bool IsFileSizeAllowed(SiteInfo siteInfo, int contentLength)
         {
-            return contentLength <= siteInfo.Additional.FileUploadTypeMaxSize * 1024;
+            return contentLength <= siteInfo.FileUploadTypeMaxSize * 1024;
         }
 
         public static bool IsUploadExtenstionAllowed(EUploadType uploadType, SiteInfo siteInfo, string fileExtention)

@@ -5,12 +5,12 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+using SiteServer.CMS.Apis;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Database.Core;
 using SiteServer.CMS.Packaging;
-using SiteServer.CMS.Plugin.Apis;
-using SiteServer.CMS.Plugin.Model;
+using SiteServer.CMS.Plugin.Impl;
 using SiteServer.Plugin;
 
 namespace SiteServer.CMS.Plugin
@@ -27,7 +27,6 @@ namespace SiteServer.CMS.Plugin
 
             private static SortedList<string, PluginInstance> Load()
             {
-                Environment = new PluginEnvironment(WebConfigUtils.DatabaseType, WebConfigUtils.ConnectionString, WebConfigUtils.AdminDirectory, WebConfigUtils.PhysicalApplicationPath);
                 var dict = new SortedList<string, PluginInstance>();
 
                 Thread.Sleep(2000);
@@ -97,7 +96,9 @@ namespace SiteServer.CMS.Plugin
                     //var assembly = Assembly.Load(File.ReadAllBytes(PathUtils.Combine(WebConfigUtils.PhysicalApplicationPath, "Bin", PathUtils.GetFileName(metadata.ExecuteFilePath))));
                     var assembly = Assembly.Load(metadata.Id);  // load the dll from bin directory
 
-                    var type = assembly.GetTypes().First(o => o.IsClass && !o.IsAbstract && o.IsSubclassOf(typeof(PluginBase)));
+                    var type = assembly.GetExportedTypes().FirstOrDefault(exportedType => typeof(PluginBase).IsAssignableFrom(exportedType));
+
+                    //var type = assembly.GetTypes().GetObjectById(o => o.IsClass && !o.IsAbstract && o.IsSubclassOf(typeof(PluginBase)));
 
                     return ActiveAndAdd(metadata, type);
                 }
@@ -133,31 +134,20 @@ namespace SiteServer.CMS.Plugin
                 }
             }
 
-            // TODO: 增加SINGLETON约束
             private static PluginInstance ActiveAndAdd(PackageMetadata metadata, Type type)
             {
                 if (metadata == null || type == null) return null;
+
+                if (StringUtils.EqualsIgnoreCase(metadata.Id, "SS.Home")) return null;
 
                 var s = Stopwatch.StartNew();
 
                 //var plugin = (IPlugin)Activator.CreateInstance(type);
 
                 var plugin = (PluginBase)Activator.CreateInstance(type);
-                plugin.Initialize(metadata, Environment, new PluginApiCollection
-                {
-                    AdminApi = new AdminApi(metadata),
-                    ConfigApi = new ConfigApi(metadata),
-                    ContentApi = ContentApi.Instance,
-                    DataApi = DataProvider.DataApi,
-                    FilesApi = FilesApi.Instance,
-                    ChannelApi = ChannelApi.Instance,
-                    ParseApi = ParseApi.Instance,
-                    PluginApi = new PluginApi(metadata),
-                    SiteApi = SiteApi.Instance,
-                    UserApi = UserApi.Instance
-                });
+                plugin.Initialize(metadata);
 
-                var service = new PluginService(metadata);
+                var service = new ServiceImpl(metadata);
 
                 plugin.Startup(service);
 
@@ -191,7 +181,27 @@ namespace SiteServer.CMS.Plugin
             }
         }
 
-        public static PluginEnvironment Environment { get; private set; }
+        private static List<PluginInstance> _pluginInfoListRunnable;
+
+        public static void LoadPlugins(string applicationPhysicalPath)
+        {
+            WebConfigUtils.Load(applicationPhysicalPath);
+            _pluginInfoListRunnable = PluginInfoListRunnable;
+
+            Context.Initialize(new EnvironmentImpl(WebConfigUtils.DatabaseType, WebConfigUtils.ConnectionString, WebConfigUtils.AdminDirectory, WebConfigUtils.PhysicalApplicationPath), new ApiCollectionImpl
+            {
+                AdminApi = AdminApi.Instance,
+                ConfigApi = ConfigApi.Instance,
+                ContentApi = ContentApi.Instance,
+                DatabaseApi = DatabaseApi.Instance,
+                ChannelApi = ChannelApi.Instance,
+                ParseApi = ParseApi.Instance,
+                PluginApi = PluginApi.Instance,
+                SiteApi = SiteApi.Instance,
+                UserApi = UserApi.Instance,
+                UtilsApi = UtilsApi.Instance
+            });
+        }
 
         public static void ClearCache()
         {
@@ -248,7 +258,7 @@ namespace SiteServer.CMS.Plugin
                         .ToList();
         }
 
-        public static List<PluginService> Services
+        public static List<ServiceImpl> Services
         {
             get
             {
@@ -267,12 +277,13 @@ namespace SiteServer.CMS.Plugin
 
             var dict = PluginManagerCache.GetPluginSortedList();
 
-            PluginInstance pluginInfo;
-            if (dict.TryGetValue(pluginId, out pluginInfo))
-            {
-                return pluginInfo;
-            }
-            return null;
+            return dict.TryGetValue(pluginId, out var pluginInfo) ? pluginInfo : null;
+        }
+
+        public static PluginInstance GetPluginInfo<T>() where T : PluginBase
+        {
+            var dict = PluginManagerCache.GetPluginSortedList();
+            return dict.Values.Where(instance => instance.Plugin is T).FirstOrDefault(instance => instance.IsRunnable && !instance.IsDisabled);
         }
 
         public static Dictionary<string, string> GetPluginIdAndVersionDict()
@@ -405,7 +416,7 @@ namespace SiteServer.CMS.Plugin
             return pluginInfos.Select(pluginInfo => (T)pluginInfo.Plugin).ToList();
         }
 
-        public static PluginService GetService(string pluginId)
+        public static ServiceImpl GetService(string pluginId)
         {
             if (string.IsNullOrEmpty(pluginId)) return null;
 
@@ -612,7 +623,7 @@ namespace SiteServer.CMS.Plugin
             if (pluginInfo != null)
             {
                 pluginInfo.IsDisabled = isDisabled;
-                DataProvider.PluginDao.UpdateIsDisabled(pluginId, isDisabled);
+                DataProvider.Plugin.UpdateIsDisabled(pluginId, isDisabled);
                 ClearCache();
             }
         }
@@ -623,7 +634,7 @@ namespace SiteServer.CMS.Plugin
             if (pluginInfo != null)
             {
                 pluginInfo.Taxis = taxis;
-                DataProvider.PluginDao.UpdateTaxis(pluginId, taxis);
+                DataProvider.Plugin.UpdateTaxis(pluginId, taxis);
                 ClearCache();
             }
         }
@@ -728,7 +739,7 @@ namespace SiteServer.CMS.Plugin
             return string.Empty;
         }
 
-        public static string GetPluginIconUrl(PluginService service)
+        public static string GetPluginIconUrl(ServiceImpl service)
         {
             var url = string.Empty;
             if (service.Metadata.IconUrl != null)

@@ -14,7 +14,10 @@ namespace SiteServer.CMS.Packaging
     public class PackageUtils
     {
         public const string PackageIdSsCms = "SS.CMS";
+        public const string PackageIdSiteServerPlugin = "SiteServer.Plugin";
         public const string VersionDev = "0.0.0";
+
+        public const string CacheKeySsCmsIsDownload = nameof(CacheKeySsCmsIsDownload);
 
         //private const string NuGetPackageSource = "https://packages.nuget.org/api/v2";
         //private const string MyGetPackageSource = "https://www.myget.org/F/siteserver/api/v2";
@@ -71,8 +74,7 @@ namespace SiteServer.CMS.Packaging
                     Directory.CreateDirectory(directoryPath);
                 }
 
-                var localFilePath = PathUtils.Combine(directoryPath, idWithVersion + ".nupkg");                
-
+                var localFilePath = PathUtils.Combine(directoryPath, idWithVersion + ".nupkg");
                 WebClientUtils.SaveRemoteFileToLocal(
                     $"https://api.siteserver.cn/downloads/update/{version}", localFilePath);
 
@@ -149,7 +151,7 @@ namespace SiteServer.CMS.Packaging
                     }
 
                     WebConfigUtils.UpdateWebConfig(packageWebConfigPath, WebConfigUtils.IsProtectData,
-                        WebConfigUtils.DatabaseType, WebConfigUtils.ConnectionString, WebConfigUtils.AdminDirectory,
+                        WebConfigUtils.DatabaseType, WebConfigUtils.ConnectionString, WebConfigUtils.ApiPrefix, WebConfigUtils.AdminDirectory, WebConfigUtils.HomeDirectory,
                         WebConfigUtils.SecretKey, WebConfigUtils.IsNightlyUpdate);
 
                     //DirectoryUtils.Copy(PathUtils.Combine(packagePath, DirectoryUtils.SiteFiles.DirectoryName),
@@ -187,12 +189,20 @@ namespace SiteServer.CMS.Packaging
                 }
                 else if (packageType == PackageType.Library)
                 {
-                    var sourceDllPath = PathUtils.Combine(dllDirectoryPath, $"{metadata.Id}.dll");
-                    var destDllPath = PathUtils.GetBinDirectoryPath($"{metadata.Id}.dll");
-                    if (FileUtils.IsFileExists(sourceDllPath) && !FileUtils.IsFileExists(destDllPath))
+                    var fileNames = DirectoryUtils.GetFileNames(dllDirectoryPath);
+                    foreach (var fileName in fileNames)
                     {
-                        FileUtils.CopyFile(sourceDllPath, destDllPath, false);
+                        if (StringUtils.EndsWithIgnoreCase(fileName, ".dll"))
+                        {
+                            var sourceDllPath = PathUtils.Combine(dllDirectoryPath, fileName);
+                            var destDllPath = PathUtils.GetBinDirectoryPath(fileName);
+                            if (!FileUtils.IsFileExists(destDllPath))
+                            {
+                                FileUtils.CopyFile(sourceDllPath, destDllPath, false);
+                            }
+                        }
                     }
+                    
                 }
             }
             catch (Exception ex)
@@ -254,7 +264,7 @@ namespace SiteServer.CMS.Packaging
 
             if (string.IsNullOrEmpty(nuspecPath))
             {
-                errorMessage = "插件配置文件不存在";
+                errorMessage = "配置文件不存在";
                 return null;
             }
 
@@ -273,7 +283,7 @@ namespace SiteServer.CMS.Packaging
 
             if (string.IsNullOrEmpty(packageId))
             {
-                errorMessage = $"插件配置文件 {nuspecPath} 不正确";
+                errorMessage = $"配置文件 {nuspecPath} 不正确";
                 return null;
             }
 
@@ -281,13 +291,13 @@ namespace SiteServer.CMS.Packaging
             {
                 dllDirectoryPath = FindDllDirectoryPath(directoryPath);
 
-                if (!FileUtils.IsFileExists(PathUtils.Combine(dllDirectoryPath, packageId + ".dll")))
-                {
-                    errorMessage = $"插件可执行文件 {packageId}.dll 不存在";
-                    return null;
-                }
+                //if (!FileUtils.IsFileExists(PathUtils.Combine(dllDirectoryPath, packageId + ".dll")))
+                //{
+                //    errorMessage = $"插件可执行文件 {packageId}.dll 不存在";
+                //    return null;
+                //}
             }
-            
+
             return metadata;
         }
 

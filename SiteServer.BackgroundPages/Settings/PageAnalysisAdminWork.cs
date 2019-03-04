@@ -7,7 +7,8 @@ using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.BackgroundPages.Controls;
 using SiteServer.BackgroundPages.Core;
-using SiteServer.CMS.Core;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Database.Core;
 
 namespace SiteServer.BackgroundPages.Settings
 {
@@ -69,7 +70,7 @@ namespace SiteServer.BackgroundPages.Settings
 
             if (IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.Chart);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.Chart);
             
             foreach (var siteId in siteIdList)
             {
@@ -87,7 +88,7 @@ namespace SiteServer.BackgroundPages.Settings
                 return;
             }
 
-            var ds = DataProvider.ContentDao.GetDataSetOfAdminExcludeRecycle(SiteInfo.TableName, SiteId, _begin, _end);
+            var ds = DataProvider.ContentRepository.GetDataSetOfAdminExcludeRecycle(SiteInfo.TableName, SiteId, _begin, _end);
             if (ds == null || ds.Tables.Count <= 0) return;
 
             var dt = ds.Tables[0];
@@ -116,7 +117,7 @@ yArrayUpdate.push('{yValueUpdate}');";
             SpContents.SortField = "UserName";
             SpContents.SortMode = SortMode.DESC;
 
-            SpContents.SelectCommand = DataProvider.ContentDao.GetSqlStringOfAdminExcludeRecycle(SiteInfo.TableName, SiteId, _begin, _end);
+            SpContents.SelectCommand = DataProvider.ContentRepository.GetSqlStringOfAdminExcludeRecycle(SiteInfo.TableName, SiteId, _begin, _end);
 
             SpContents.DataBind();
         }
@@ -135,7 +136,7 @@ yArrayUpdate.push('{yValueUpdate}');";
             var ltlContentUpdate = (Literal)e.Item.FindControl("ltlContentUpdate");
 
             ltlUserName.Text = userName;
-            ltlDisplayName.Text = DataProvider.AdministratorDao.GetDisplayName(userName);
+            ltlDisplayName.Text = AdminManager.GetDisplayName(userName, false);
 
             ltlContentAdd.Text = addCount == 0 ? "0" : $"<strong>{addCount}</strong>";
             ltlContentUpdate.Text = updateCount == 0 ? "0" : $"<strong>{updateCount}</strong>";

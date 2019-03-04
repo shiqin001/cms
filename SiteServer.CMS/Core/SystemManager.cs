@@ -1,6 +1,10 @@
 ﻿using System;
 using System.Diagnostics;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Apis;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Database.Attributes;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
 using SiteServer.Utils;
 using SiteServer.Utils.Enumerations;
 
@@ -25,7 +29,7 @@ namespace SiteServer.CMS.Core
             //var version = assemblyVersion.ToString();
             //if (StringUtils.EndsWith(version, ".0"))
             //{
-            //    version = version.Substring(0, version.Length - 2);
+            //    version = version.Substring(0, version.DataLength - 2);
             //}
             //Version = version;
         }
@@ -33,6 +37,8 @@ namespace SiteServer.CMS.Core
         public static string Version { get; }
 
         public static string PluginVersion { get; }
+
+        public const string ApiVersion = "v1";
 
         public static void InstallDatabase(string adminName, string adminPassword)
         {
@@ -46,9 +52,63 @@ namespace SiteServer.CMS.Core
                     Password = adminPassword
                 };
 
-                string errorMessage;
-                AdminManager.CreateAdministrator(administratorInfo, out errorMessage);
-                DataProvider.AdministratorsInRolesDao.AddUserToRole(adminName, EPredefinedRoleUtils.GetValue(EPredefinedRole.ConsoleAdministrator));
+                DataProvider.Administrator.Insert(administratorInfo, out _);
+                DataProvider.AdministratorsInRoles.AddUserToRole(adminName, EPredefinedRoleUtils.GetValue(EPredefinedRole.ConsoleAdministrator));
+            }
+        }
+
+        public static void SyncSystemTables()
+        {
+            foreach (var repository in DataProvider.AllRepositories)
+            {
+                if (string.IsNullOrEmpty(repository.TableName) || repository.TableColumns == null || repository.TableColumns.Count <= 0) continue;
+
+                if (!DatabaseApi.Instance.IsTableExists(repository.TableName))
+                {
+                    DatabaseApi.Instance.CreateTable(repository.TableName, repository.TableColumns, string.Empty, false, out _, out _);
+                }
+                else
+                {
+                    DatabaseApi.Instance.AlterTable(repository.TableName, repository.TableColumns, string.Empty);
+                }
+            }
+        }
+
+        public static void SyncContentTables()
+        {
+            var tableNameList = SiteManager.GetAllTableNameList();
+            foreach (var tableName in tableNameList)
+            {
+                if (!DatabaseApi.Instance.IsTableExists(tableName))
+                {
+                    DatabaseApi.Instance.CreateTable(tableName, DataProvider.ContentRepository.TableColumns, string.Empty, true, out _, out _);
+                }
+                else
+                {
+                    DatabaseApi.Instance.AlterTable(tableName, DataProvider.ContentRepository.TableColumns, string.Empty, ContentAttribute.DropAttributes.Value);
+                }
+            }
+        }
+
+        public static void UpdateConfigVersion()
+        {
+            var configInfo = DataProvider.Config.GetConfigInfo();
+            if (configInfo == null)
+            {
+                configInfo = new ConfigInfo
+                {
+                    Initialized = true,
+                    DatabaseVersion = Version,
+                    UpdateDate = DateTime.Now
+                };
+                DataProvider.Config.Insert(configInfo);
+            }
+            else
+            {
+                configInfo.DatabaseVersion = Version;
+                configInfo.Initialized = true;
+                configInfo.UpdateDate = DateTime.Now;
+                DataProvider.Config.Update(configInfo);
             }
         }
 
@@ -56,61 +116,19 @@ namespace SiteServer.CMS.Core
         {
             CacheUtils.ClearAll();
 
-            foreach (var provider in DataProvider.AllProviders)
-            {
-                if (string.IsNullOrEmpty(provider.TableName) || provider.TableColumns == null || provider.TableColumns.Count <= 0) continue;
+            SyncSystemTables();
 
-                if (!DataProvider.DatabaseDao.IsTableExists(provider.TableName))
-                {
-                    DataProvider.DatabaseDao.CreateSystemTable(provider.TableName, provider.TableColumns);
-                }
-                else
-                {
-                    DataProvider.DatabaseDao.AlterSystemTable(provider.TableName, provider.TableColumns);
-                }
-            }
+            SyncContentTables();
 
-            var tableNameList = DataProvider.TableDao.GetTableNameListCreatedInDb();
-            foreach (var tableName in tableNameList)
-            {
-                if (!DataProvider.DatabaseDao.IsTableExists(tableName))
-                {
-                    DataProvider.DatabaseDao.CreateSystemTable(tableName, DataProvider.ContentDao.TableColumns);
-                }
-                else
-                {
-                    DataProvider.DatabaseDao.AlterSystemTable(tableName, DataProvider.ContentDao.TableColumns);
-                }
-            }
-
-            var configInfo = DataProvider.ConfigDao.GetConfigInfo();
-            if (configInfo == null)
-            {
-                configInfo = new ConfigInfo(true, Version, DateTime.Now, string.Empty);
-                DataProvider.ConfigDao.Insert(configInfo);
-            }
-            else
-            {
-                configInfo.DatabaseVersion = Version;
-                configInfo.IsInitialized = true;
-                configInfo.UpdateDate = DateTime.Now;
-                DataProvider.ConfigDao.Update(configInfo);
-            }
-
-            DataProvider.TableDao.CreateAllTableCollectionInfoIfNotExists();
-        }
-
-        public static bool IsNeedUpdate()
-        {
-            return !StringUtils.EqualsIgnoreCase(Version, DataProvider.ConfigDao.GetDatabaseVersion());
+            UpdateConfigVersion();
         }
 
         public static bool IsNeedInstall()
         {
-            var isNeedInstall = !DataProvider.ConfigDao.IsInitialized();
+            var isNeedInstall = !DataProvider.Config.IsInitialized();
             if (isNeedInstall)
             {
-                isNeedInstall = !DataProvider.ConfigDao.IsInitialized();
+                isNeedInstall = !DataProvider.Config.IsInitialized();
             }
             return isNeedInstall;
         }

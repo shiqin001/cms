@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Specialized;
 using System.Web.UI.WebControls;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Database.Attributes;
 using SiteServer.Utils;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Repositories.Contents;
 
 namespace SiteServer.BackgroundPages.Cms
 {
@@ -13,7 +14,6 @@ namespace SiteServer.BackgroundPages.Cms
         public DropDownList DdlAttributeName;
         public DropDownList DdlIsDesc;
         
-        private string _tableName;
         private string _returnUrl;
 
         public static string GetOpenWindowString(int siteId, int channelId, string returnUrl)
@@ -47,9 +47,8 @@ namespace SiteServer.BackgroundPages.Cms
         {
             var channelId = AuthRequest.GetQueryInt("channelId");
             var channelInfo = ChannelManager.GetChannelInfo(SiteId, channelId);
-            _tableName = ChannelManager.GetTableName(SiteInfo, channelInfo);
 
-            DataProvider.ContentDao.TidyUp(_tableName, channelId, DdlAttributeName.SelectedValue, TranslateUtils.ToBool(DdlIsDesc.SelectedValue));
+            channelInfo.ContentRepository.UpdateArrangeTaxis(channelId, DdlAttributeName.SelectedValue, TranslateUtils.ToBool(DdlIsDesc.SelectedValue));
 
             LayerUtils.CloseAndRedirect(Page, _returnUrl);
         }

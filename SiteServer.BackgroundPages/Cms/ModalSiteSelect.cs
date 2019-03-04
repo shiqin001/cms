@@ -1,18 +1,20 @@
 ﻿using System;
-using System.Text;
 using System.Web.UI.WebControls;
 using SiteServer.Utils;
-using SiteServer.CMS.Core;
+using System.Collections.Generic;
+using SiteServer.CMS.Caches;
 
 namespace SiteServer.BackgroundPages.Cms
 {
     public class ModalSiteSelect : BasePageCms
     {
-        public Literal LtlHtml;
+        public Repeater RptContents;
 
-        public static string GetOpenLayerString(int siteId)
+        private List<int> _siteIdList;
+
+        public static string GetRedirectUrl(int siteId)
         {
-            return LayerUtils.GetOpenScript("选择站点", PageUtils.GetCmsUrl(siteId, nameof(ModalSiteSelect), null));
+            return PageUtils.GetCmsUrl(siteId, nameof(ModalSiteSelect), null);
         }
 
         public void Page_Load(object sender, EventArgs e)
@@ -21,27 +23,32 @@ namespace SiteServer.BackgroundPages.Cms
 
             if (IsPostBack) return;
 
-            var builder = new StringBuilder();
+            _siteIdList = AuthRequest.AdminPermissionsImpl.GetSiteIdList();
+            RptContents.DataSource = SiteManager.GetSiteIdListOrderByLevel();
+            RptContents.ItemDataBound += RptContents_ItemDataBound;
+            RptContents.DataBind();
+        }
 
-            var siteIdList = AuthRequest.AdminPermissions.SiteIdList;
-            foreach (var siteId in siteIdList)
+        private void RptContents_ItemDataBound(object sender, RepeaterItemEventArgs e)
+        {
+            if (e.Item.ItemType != ListItemType.Item && e.Item.ItemType != ListItemType.AlternatingItem) return;
+
+            var siteInfo = SiteManager.GetSiteInfo((int)e.Item.DataItem);
+
+            if (!_siteIdList.Contains(siteInfo.Id))
             {
-                var loadingUrl = PageUtils.GetLoadingUrl(PageMain.GetRedirectUrl(siteId));
-                var siteInfo = SiteManager.GetSiteInfo(siteId);
-                builder.Append($@"
-<div class=""col-sm-6 col-lg-3"">
-    <div class=""widget-simple text-center card-box"">
-        <h3 class=""text-success counter"">
-            <a href=""{loadingUrl}"" target=""_top"">
-                {siteInfo.SiteName}
-            </a>
-        </h3>
-        <p class=""text-muted"">{siteInfo.SiteDir}</p>
-    </div>
-</div>");
+                e.Item.Visible = false;
+                return;
             }
 
-            LtlHtml.Text = builder.ToString();
+            var ltlName = (Literal)e.Item.FindControl("ltlName");
+            var ltlDir = (Literal)e.Item.FindControl("ltlDir");
+            var ltlWebUrl = (Literal)e.Item.FindControl("ltlWebUrl");
+
+            ltlName.Text = $@"<a href=""{PageUtils.GetLoadingUrl(PageUtils.GetMainUrl(siteInfo.Id, string.Empty))}"" target=""_top"">{SiteManager.GetSiteName(siteInfo)}</a>";
+            ltlDir.Text = siteInfo.SiteDir;
+
+            ltlWebUrl.Text = $@"<a href=""{siteInfo.WebUrl}"" target=""_blank"">{siteInfo.WebUrl}</a>";
         }
     }
 }

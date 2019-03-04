@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Web.UI.WebControls;
+using SiteServer.CMS.Caches;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
 
@@ -18,7 +19,7 @@ namespace SiteServer.BackgroundPages.Settings
 
             if (Page.IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.Site);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.Site);
 
             InfoMessage($@"本页面只显示部分免费模板，更多站点模板请访问官网：<a href=""{OnlineTemplateManager.UrlHome}"" target=""_blank"">{OnlineTemplateManager.UrlHome}</a>");
 

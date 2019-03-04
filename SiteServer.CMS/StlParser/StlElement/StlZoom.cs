@@ -6,14 +6,17 @@ using SiteServer.CMS.StlParser.Utility;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "文字缩放", Description = "通过 stl:zoom 标签在模板中实现文字缩放功能")]
+    [StlElement(Title = "文字缩放", Description = "通过 stl:zoom 标签在模板中实现文字缩放功能")]
     public class StlZoom
 	{
         private StlZoom() { }
         public const string ElementName = "stl:zoom";
 
-        private static readonly Attr ZoomId = new Attr("zoomId", "页面HTML中缩放对象的ID属性");
-        private static readonly Attr FontSize = new Attr("fontSize", "缩放字体大小");
+        [StlAttribute(Title = "页面Html 中缩放对象的 Id 属性")]
+        private const string ZoomId = nameof(ZoomId);
+
+        [StlAttribute(Title = "缩放字体大小")]
+        private const string FontSize = nameof(FontSize);
 
         public static string Parse(PageInfo pageInfo, ContextInfo contextInfo)
 		{
@@ -21,15 +24,15 @@ namespace SiteServer.CMS.StlParser.StlElement
             var fontSize = 16;
             var stlAnchor = new HtmlAnchor();
 
-            foreach (var name in contextInfo.Attributes.Keys)
+            foreach (var name in contextInfo.Attributes.AllKeys)
             {
                 var value = contextInfo.Attributes[name];
 
-                if (StringUtils.EqualsIgnoreCase(name, ZoomId.Name))
+                if (StringUtils.EqualsIgnoreCase(name, ZoomId))
                 {
                     zoomId = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, FontSize.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, FontSize))
                 {
                     fontSize = TranslateUtils.ToInt(value, 16);
                 }
@@ -70,13 +73,13 @@ function stlDoZoom(zoomId, size){
 ");
             }
 
-            if (string.IsNullOrEmpty(contextInfo.InnerXml))
+            if (string.IsNullOrEmpty(contextInfo.InnerHtml))
             {
                 stlAnchor.InnerHtml = "缩放";
             }
             else
             {
-                var innerBuilder = new StringBuilder(contextInfo.InnerXml);
+                var innerBuilder = new StringBuilder(contextInfo.InnerHtml);
                 StlParserManager.ParseInnerContent(innerBuilder, pageInfo, contextInfo);
                 stlAnchor.InnerHtml = innerBuilder.ToString();
             }

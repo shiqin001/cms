@@ -1,76 +1,53 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Text;
 using System.Web.UI.WebControls;
-using System.Xml;
-using SiteServer.CMS.Api.Sys.Stl;
+using SiteServer.CMS.Apis;
+using SiteServer.CMS.Caches.Stl;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
-using SiteServer.CMS.Model.Enumerations;
-using SiteServer.CMS.StlParser.Cache;
+using SiteServer.CMS.Core.Enumerations;
+using SiteServer.CMS.Core.RestRoutes.Sys.Stl;
+using SiteServer.CMS.Database.Attributes;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Utility;
 using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "翻页内容列表", Description = "通过 stl:pageContents 标签在模板中显示翻页内容列表")]
+    [StlElement(Title = "翻页内容列表", Description = "通过 stl:pageContents 标签在模板中显示翻页内容列表")]
     public class StlPageContents : StlContents
     {
         public new const string ElementName = "stl:pageContents";
 
-        public static readonly Attr PageNum = new Attr("pageNum", "每页显示的内容数目");
-        public static readonly Attr MaxPage = new Attr("maxPage", "翻页中生成的静态页面最大数，剩余页面将动态获取");
+        [StlAttribute(Title = "每页显示的内容数目")]
+        public const string PageNum = nameof(PageNum);
+        
+        [StlAttribute(Title = "翻页中生成的静态页面最大数，剩余页面将动态获取")]
+        public const string MaxPage = nameof(MaxPage);
 
         private readonly string _stlPageContentsElement;
-        private readonly XmlNode _node;
         private readonly PageInfo _pageInfo;
         private readonly ContextInfo _contextInfo;
+        private readonly ListInfo _listInfo;
+        private readonly string _sqlString;
 
-        public StlPageContents(string stlPageContentsElement, PageInfo pageInfo, ContextInfo contextInfo, bool isXmlContent)
+        public StlPageContents(string stlPageContentsElement, PageInfo pageInfo, ContextInfo contextInfo)
         {
+            _stlPageContentsElement = stlPageContentsElement;
             _pageInfo = pageInfo;
             _contextInfo = contextInfo;
-            var xmlDocument = StlParserUtility.GetXmlDocument(stlPageContentsElement, isXmlContent);
-            _node = xmlDocument.DocumentElement;
-            if (_node != null)
-            {
-                _stlPageContentsElement = _node.InnerXml;
-                _node = _node.FirstChild;
 
-                var attributes = new Dictionary<string, string>();
-                var ie = _node?.Attributes?.GetEnumerator();
-                if (ie != null)
-                {
-                    while (ie.MoveNext())
-                    {
-                        var attr = (XmlAttribute)ie.Current;
+            var stlElementInfo = StlParserUtility.ParseStlElement(stlPageContentsElement);
 
-                        var key = attr.Name;
-                        if (!string.IsNullOrEmpty(key))
-                        {
-                            var value = attr.Value;
-                            if (string.IsNullOrEmpty(value))
-                            {
-                                value = string.Empty;
-                            }
-                            attributes[key] = value;
-                        }
-                    }
-                }
+            _contextInfo = contextInfo.Clone(stlPageContentsElement, stlElementInfo.InnerHtml, stlElementInfo.Attributes);
 
-                _contextInfo = contextInfo.Clone(stlPageContentsElement, attributes, _node?.InnerXml, _node?.ChildNodes);
+            _listInfo = ListInfo.GetListInfo(_pageInfo, _contextInfo, EContextType.Content);
 
-                ListInfo = ListInfo.GetListInfoByXmlNode(_pageInfo, _contextInfo, EContextType.Content);
-            }
+            var channelId = StlDataUtility.GetChannelIdByLevel(_pageInfo.SiteId, _contextInfo.ChannelId, _listInfo.UpLevel, _listInfo.TopLevel);
 
-            var channelId = StlDataUtility.GetChannelIdByLevel(_pageInfo.SiteId, _contextInfo.ChannelId, ListInfo.UpLevel, ListInfo.TopLevel);
+            channelId = StlDataUtility.GetChannelIdByChannelIdOrChannelIndexOrChannelName(_pageInfo.SiteId, channelId, _listInfo.ChannelIndex, _listInfo.ChannelName);
 
-            channelId = StlDataUtility.GetChannelIdByChannelIdOrChannelIndexOrChannelName(_pageInfo.SiteId, channelId, ListInfo.ChannelIndex, ListInfo.ChannelName);
-
-            SqlString = StlDataUtility.GetStlPageContentsSqlString(_pageInfo.SiteInfo, channelId, ListInfo);
+            _sqlString = StlDataUtility.GetStlPageContentsSqlString(_pageInfo.SiteInfo, channelId, _listInfo);
         }
 
         //API StlActionsSearchController调用
@@ -78,46 +55,21 @@ namespace SiteServer.CMS.StlParser.StlElement
         {
             _pageInfo = pageInfo;
             _contextInfo = contextInfo;
-            var xmlDocument = StlParserUtility.GetXmlDocument(stlPageContentsElement, false);
-            _node = xmlDocument.DocumentElement;
-            if (_node != null)
-            {
-                _node = _node.FirstChild;
 
-                var attributes = new Dictionary<string, string>();
-                var ie = _node?.Attributes?.GetEnumerator();
-                if (ie != null)
-                {
-                    while (ie.MoveNext())
-                    {
-                        var attr = (XmlAttribute)ie.Current;
+            var stlElementInfo = StlParserUtility.ParseStlElement(stlPageContentsElement);
+            _contextInfo = contextInfo.Clone(stlPageContentsElement, stlElementInfo.InnerHtml, stlElementInfo.Attributes);
 
-                        var key = attr.Name;
-                        if (!string.IsNullOrEmpty(key))
-                        {
-                            var value = attr.Value;
-                            if (string.IsNullOrEmpty(value))
-                            {
-                                value = string.Empty;
-                            }
-                            attributes[key] = value;
-                        }
-                    }
-                }
+            _listInfo = ListInfo.GetListInfo(_pageInfo, _contextInfo, EContextType.Content);
 
-                _contextInfo = contextInfo.Clone(stlPageContentsElement, attributes, _node?.InnerXml, _node?.ChildNodes);
+            _listInfo.Scope = EScopeType.All;
 
-                ListInfo = ListInfo.GetListInfoByXmlNode(_pageInfo, _contextInfo, EContextType.Content);
-            }
-            ListInfo.Scope = EScopeType.All;
-
-            ListInfo.Where += whereString;
+            _listInfo.Where += whereString;
             if (pageNum > 0)
             {
-                ListInfo.PageNum = pageNum;
+                _listInfo.PageNum = pageNum;
             }
 
-            SqlString = StlDataUtility.GetPageContentsSqlStringBySearch(tableName, ListInfo.GroupContent, ListInfo.GroupContentNot, ListInfo.Tags, ListInfo.IsImageExists, ListInfo.IsImage, ListInfo.IsVideoExists, ListInfo.IsVideo, ListInfo.IsFileExists, ListInfo.IsFile, ListInfo.StartNum, ListInfo.TotalNum, ListInfo.OrderByString, ListInfo.IsTopExists, ListInfo.IsTop, ListInfo.IsRecommendExists, ListInfo.IsRecommend, ListInfo.IsHotExists, ListInfo.IsHot, ListInfo.IsColorExists, ListInfo.IsColor, ListInfo.Where);
+            _sqlString = StlDataUtility.GetPageContentsSqlStringBySearch(tableName, _listInfo.GroupContent, _listInfo.GroupContentNot, _listInfo.IsImageExists, _listInfo.IsImage, _listInfo.IsVideoExists, _listInfo.IsVideo, _listInfo.IsFileExists, _listInfo.IsFile, _listInfo.StartNum, _listInfo.TotalNum, _listInfo.OrderByString, _listInfo.IsTopExists, _listInfo.IsTop, _listInfo.IsRecommendExists, _listInfo.IsRecommend, _listInfo.IsHotExists, _listInfo.IsHot, _listInfo.IsColorExists, _listInfo.IsColor, _listInfo.Where);
         }
 
         public int GetPageCount(out int totalNum)
@@ -126,11 +78,11 @@ namespace SiteServer.CMS.StlParser.StlElement
             var pageCount = 1;
             try
             {
-                //totalNum = DataProvider.DatabaseDao.GetPageTotalCount(SqlString);
-                totalNum = Database.GetPageTotalCount(SqlString);
-                if (ListInfo.PageNum != 0 && ListInfo.PageNum < totalNum)//需要翻页
+                //totalNum = DatabaseApi.Instance.GetPageTotalCount(SqlString);
+                totalNum = StlDatabaseCache.GetPageTotalCount(_sqlString);
+                if (_listInfo.PageNum != 0 && _listInfo.PageNum < totalNum)//需要翻页
                 {
-                    pageCount = Convert.ToInt32(Math.Ceiling(Convert.ToDouble(totalNum) / Convert.ToDouble(ListInfo.PageNum)));//需要生成的总页数
+                    pageCount = Convert.ToInt32(Math.Ceiling(Convert.ToDouble(totalNum) / Convert.ToDouble(_listInfo.PageNum)));//需要生成的总页数
                 }
             }
             catch
@@ -140,18 +92,14 @@ namespace SiteServer.CMS.StlParser.StlElement
             return pageCount;
         }
 
-        public string SqlString { get; }
-
-        public ListInfo ListInfo { get; }
-
         public string Parse(int totalNum, int currentPageIndex, int pageCount, bool isStatic)
         {
             if (isStatic)
             {
-                var maxPage = ListInfo.MaxPage;
+                var maxPage = _listInfo.MaxPage;
                 if (maxPage == 0)
                 {
-                    maxPage = _pageInfo.SiteInfo.Additional.CreateStaticMaxPage;
+                    maxPage = _pageInfo.SiteInfo.CreateStaticMaxPage;
                 }
                 if (maxPage > 0 && currentPageIndex + 1 > maxPage)
                 {
@@ -161,93 +109,88 @@ namespace SiteServer.CMS.StlParser.StlElement
 
             var parsedContent = string.Empty;
 
-            _contextInfo.PageItemIndex = currentPageIndex * ListInfo.PageNum;
+            _contextInfo.PageItemIndex = currentPageIndex * _listInfo.PageNum;
 
             try
             {
-                if (_node != null)
+                if (!string.IsNullOrEmpty(_sqlString))
                 {
-                    if (!string.IsNullOrEmpty(SqlString))
+                    //var pageSqlString = DatabaseApi.Instance.GetPageSqlString(SqlString, ListInfo.OrderByString, totalNum, ListInfo.PageNum, currentPageIndex);
+                    var pageSqlString = StlDatabaseCache.GetStlPageSqlString(_sqlString, _listInfo.OrderByString, totalNum, _listInfo.PageNum, currentPageIndex);
+
+                    var dataSource = DatabaseApi.Instance.GetDataSource(pageSqlString);
+
+                    if (_listInfo.Layout == ELayout.None)
                     {
-                        //var pageSqlString = DataProvider.DatabaseDao.GetPageSqlString(SqlString, ListInfo.OrderByString, totalNum, ListInfo.PageNum, currentPageIndex);
-                        var pageSqlString = Database.GetStlPageSqlString(SqlString, ListInfo.OrderByString, totalNum, ListInfo.PageNum, currentPageIndex);
+                        var rptContents = new Repeater();
 
-                        var datasource = DataProvider.DatabaseDao.GetDataSource(pageSqlString);
-
-                        if (ListInfo.Layout == ELayout.None)
+                        if (!string.IsNullOrEmpty(_listInfo.HeaderTemplate))
                         {
-                            var rptContents = new Repeater();
-
-                            if (!string.IsNullOrEmpty(ListInfo.HeaderTemplate))
-                            {
-                                rptContents.HeaderTemplate = new SeparatorTemplate(ListInfo.HeaderTemplate);
-                            }
-                            if (!string.IsNullOrEmpty(ListInfo.FooterTemplate))
-                            {
-                                rptContents.FooterTemplate = new SeparatorTemplate(ListInfo.FooterTemplate);
-                            }
-                            if (!string.IsNullOrEmpty(ListInfo.SeparatorTemplate))
-                            {
-                                rptContents.SeparatorTemplate = new SeparatorTemplate(ListInfo.SeparatorTemplate);
-                            }
-                            if (!string.IsNullOrEmpty(ListInfo.AlternatingItemTemplate))
-                            {
-                                rptContents.AlternatingItemTemplate = new RepeaterTemplate(ListInfo.AlternatingItemTemplate, ListInfo.SelectedItems, ListInfo.SelectedValues, ListInfo.SeparatorRepeatTemplate, ListInfo.SeparatorRepeat, _pageInfo, EContextType.Content, _contextInfo);
-                            }
-
-                            rptContents.ItemTemplate = new RepeaterTemplate(ListInfo.ItemTemplate, ListInfo.SelectedItems, ListInfo.SelectedValues, ListInfo.SeparatorRepeatTemplate, ListInfo.SeparatorRepeat, _pageInfo, EContextType.Content, _contextInfo);
-
-                            rptContents.DataSource = datasource;
-                            rptContents.DataBind();
-
-                            if (rptContents.Items.Count > 0)
-                            {
-                                parsedContent = ControlUtils.GetControlRenderHtml(rptContents);
-                            }
+                            rptContents.HeaderTemplate = new SeparatorTemplate(_listInfo.HeaderTemplate);
                         }
-                        else
+                        if (!string.IsNullOrEmpty(_listInfo.FooterTemplate))
                         {
-                            var pdlContents = new ParsedDataList();
+                            rptContents.FooterTemplate = new SeparatorTemplate(_listInfo.FooterTemplate);
+                        }
+                        if (!string.IsNullOrEmpty(_listInfo.SeparatorTemplate))
+                        {
+                            rptContents.SeparatorTemplate = new SeparatorTemplate(_listInfo.SeparatorTemplate);
+                        }
+                        if (!string.IsNullOrEmpty(_listInfo.AlternatingItemTemplate))
+                        {
+                            rptContents.AlternatingItemTemplate = new RepeaterTemplate(_listInfo.AlternatingItemTemplate, _listInfo.SelectedItems, _listInfo.SelectedValues, _listInfo.SeparatorRepeatTemplate, _listInfo.SeparatorRepeat, _pageInfo, EContextType.Content, _contextInfo);
+                        }
 
-                            //设置显示属性
-                            TemplateUtility.PutListInfoToMyDataList(pdlContents, ListInfo);
+                        rptContents.ItemTemplate = new RepeaterTemplate(_listInfo.ItemTemplate, _listInfo.SelectedItems, _listInfo.SelectedValues, _listInfo.SeparatorRepeatTemplate, _listInfo.SeparatorRepeat, _pageInfo, EContextType.Content, _contextInfo);
 
-                            pdlContents.ItemTemplate = new DataListTemplate(ListInfo.ItemTemplate, ListInfo.SelectedItems, ListInfo.SelectedValues, ListInfo.SeparatorRepeatTemplate, ListInfo.SeparatorRepeat, _pageInfo, EContextType.Content, _contextInfo);
-                            if (!string.IsNullOrEmpty(ListInfo.HeaderTemplate))
-                            {
-                                pdlContents.HeaderTemplate = new SeparatorTemplate(ListInfo.HeaderTemplate);
-                            }
-                            if (!string.IsNullOrEmpty(ListInfo.FooterTemplate))
-                            {
-                                pdlContents.FooterTemplate = new SeparatorTemplate(ListInfo.FooterTemplate);
-                            }
-                            if (!string.IsNullOrEmpty(ListInfo.SeparatorTemplate))
-                            {
-                                pdlContents.SeparatorTemplate = new SeparatorTemplate(ListInfo.SeparatorTemplate);
-                            }
-                            if (!string.IsNullOrEmpty(ListInfo.AlternatingItemTemplate))
-                            {
-                                pdlContents.AlternatingItemTemplate = new DataListTemplate(ListInfo.AlternatingItemTemplate, ListInfo.SelectedItems, ListInfo.SelectedValues, ListInfo.SeparatorRepeatTemplate, ListInfo.SeparatorRepeat, _pageInfo, EContextType.Content, _contextInfo);
-                            }
+                        rptContents.DataSource = dataSource;
+                        rptContents.DataBind();
 
-                            pdlContents.DataSource = datasource;
-                            pdlContents.DataKeyField = ContentAttribute.Id;
-                            pdlContents.DataBind();
+                        if (rptContents.Items.Count > 0)
+                        {
+                            parsedContent = ControlUtils.GetControlRenderHtml(rptContents);
+                        }
+                    }
+                    else
+                    {
+                        var pdlContents = new ParsedDataList();
 
-                            if (pdlContents.Items.Count > 0)
-                            {
-                                parsedContent = ControlUtils.GetControlRenderHtml(pdlContents);
-                            }
+                        //设置显示属性
+                        TemplateUtility.PutListInfoToMyDataList(pdlContents, _listInfo);
+
+                        pdlContents.ItemTemplate = new DataListTemplate(_listInfo.ItemTemplate, _listInfo.SelectedItems, _listInfo.SelectedValues, _listInfo.SeparatorRepeatTemplate, _listInfo.SeparatorRepeat, _pageInfo, EContextType.Content, _contextInfo);
+                        if (!string.IsNullOrEmpty(_listInfo.HeaderTemplate))
+                        {
+                            pdlContents.HeaderTemplate = new SeparatorTemplate(_listInfo.HeaderTemplate);
+                        }
+                        if (!string.IsNullOrEmpty(_listInfo.FooterTemplate))
+                        {
+                            pdlContents.FooterTemplate = new SeparatorTemplate(_listInfo.FooterTemplate);
+                        }
+                        if (!string.IsNullOrEmpty(_listInfo.SeparatorTemplate))
+                        {
+                            pdlContents.SeparatorTemplate = new SeparatorTemplate(_listInfo.SeparatorTemplate);
+                        }
+                        if (!string.IsNullOrEmpty(_listInfo.AlternatingItemTemplate))
+                        {
+                            pdlContents.AlternatingItemTemplate = new DataListTemplate(_listInfo.AlternatingItemTemplate, _listInfo.SelectedItems, _listInfo.SelectedValues, _listInfo.SeparatorRepeatTemplate, _listInfo.SeparatorRepeat, _pageInfo, EContextType.Content, _contextInfo);
+                        }
+
+                        pdlContents.DataSource = dataSource;
+                        pdlContents.DataKeyField = ContentAttribute.Id;
+                        pdlContents.DataBind();
+
+                        if (pdlContents.Items.Count > 0)
+                        {
+                            parsedContent = ControlUtils.GetControlRenderHtml(pdlContents);
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                parsedContent = StlParserUtility.GetStlErrorMessage(ElementName, _stlPageContentsElement, ex);
+                parsedContent = LogUtils.AddStlErrorLog(_pageInfo, ElementName, _stlPageContentsElement, ex);
             }
-
-            parsedContent = StlParserUtility.GetBackHtml(parsedContent, _pageInfo);
 
             //还原翻页为0，使得其他列表能够正确解析ItemIndex
             _contextInfo.PageItemIndex = 0;
@@ -256,7 +199,7 @@ namespace SiteServer.CMS.StlParser.StlElement
 
         private string ParseDynamic(int totalNum, int currentPageIndex, int pageCount)
         {
-            var loading = ListInfo.LoadingTemplate;
+            var loading = _listInfo.LoadingTemplate;
             if (string.IsNullOrEmpty(loading))
             {
                 loading = @"<div style=""margin: 0 auto;

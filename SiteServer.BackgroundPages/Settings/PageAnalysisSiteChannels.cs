@@ -6,8 +6,9 @@ using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.BackgroundPages.Controls;
 using SiteServer.BackgroundPages.Core;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model.Enumerations;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Core.Enumerations;
+using SiteServer.CMS.Database.Core;
 using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.BackgroundPages.Settings
@@ -71,7 +72,7 @@ namespace SiteServer.BackgroundPages.Settings
 
             if (IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.Chart);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.Chart);
 
             DdlSiteId.Items.Add(new ListItem("<<全部站点>>", "0"));
             var siteIdList = SiteManager.GetSiteIdListOrderByLevel();
@@ -117,8 +118,8 @@ yArrayUpdate.push('{yValueUpdate}');";
 
                 SetXHashtable(channelId, nodeInfo.ChannelName);
 
-                SetYHashtable(channelId, DataProvider.ContentDao.GetCountOfContentAdd(tableName, SiteId, nodeInfo.Id, EScopeType.All, TranslateUtils.ToDateTime(_additional["StartDate"]), TranslateUtils.ToDateTime(_additional["EndDate"]), string.Empty, ETriState.All), YTypeNew);
-                SetYHashtable(channelId, DataProvider.ContentDao.GetCountOfContentUpdate(tableName, SiteId, nodeInfo.Id, EScopeType.All, TranslateUtils.ToDateTime(_additional["StartDate"]), TranslateUtils.ToDateTime(_additional["EndDate"]), string.Empty), YTypeUpdate);
+                SetYHashtable(channelId, DataProvider.ContentRepository.GetCountOfContentAdd(tableName, SiteId, nodeInfo.Id, EScopeType.All, TranslateUtils.ToDateTime(_additional["StartDate"]), TranslateUtils.ToDateTime(_additional["EndDate"]), string.Empty, ETriState.All), YTypeNew);
+                SetYHashtable(channelId, DataProvider.ContentRepository.GetCountOfContentUpdate(tableName, SiteId, nodeInfo.Id, EScopeType.All, TranslateUtils.ToDateTime(_additional["StartDate"]), TranslateUtils.ToDateTime(_additional["EndDate"]), string.Empty), YTypeUpdate);
             }
 
             RptChannels.DataSource = channelIdList;
@@ -140,7 +141,7 @@ yArrayUpdate.push('{yValueUpdate}');";
 
             var ltlRow = (Literal)e.Item.FindControl("ltlRow");
 
-            ltlRow.Text = ChannelLoading.GetChannelRowHtml(SiteInfo, nodeInfo, enabled, ELoadingType.SiteAnalysis, _additional, AuthRequest.AdminPermissions);
+            ltlRow.Text = ChannelLoading.GetChannelRowHtml(SiteInfo, nodeInfo, enabled, ELoadingType.SiteAnalysis, _additional, AuthRequest.AdminPermissionsImpl);
         }
 
         public void Analysis_OnClick(object sender, EventArgs e)

@@ -1,25 +1,36 @@
 ﻿using System.Collections.Generic;
 using System.Text;
 using System.Web.UI.HtmlControls;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
+using SiteServer.CMS.Caches.Stl;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.StlParser.Cache;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Utility;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "显示导航", Description = "通过 stl:navigation 标签在模板中显示链接导航")]
+    [StlElement(Title = "显示导航", Description = "通过 stl:navigation 标签在模板中显示链接导航")]
     public class StlNavigation
     {
         private StlNavigation() { }
         public const string ElementName = "stl:navigation";
 
-        private static readonly Attr Type = new Attr("type", "类型");
-        private static readonly Attr EmptyText = new Attr("emptyText", "当无内容时显示的信息");
-        private static readonly Attr TipText = new Attr("tipText", "导航提示信息");
-        private static readonly Attr WordNum = new Attr("wordNum", "显示字数");
-        private static readonly Attr IsKeyboard = new Attr("isKeyboard", "是否开启键盘，↑↓←→键分别为上下左右");
+        [StlAttribute(Title = "类型")]
+        private const string Type = nameof(Type);
+        
+        [StlAttribute(Title = "当无内容时显示的信息")]
+        private const string EmptyText = nameof(EmptyText);
+        
+        [StlAttribute(Title = "导航提示信息")]
+        private const string TipText = nameof(TipText);
+        
+        [StlAttribute(Title = "显示字数")]
+        private const string WordNum = nameof(WordNum);
+        
+        [StlAttribute(Title = "是否开启键盘，↑↓←→键分别为上下左右")]
+        private const string IsKeyboard = nameof(IsKeyboard);
 
         public const string TypePreviousChannel = "PreviousChannel";
         public const string TypeNextChannel = "NextChannel";
@@ -43,27 +54,27 @@ namespace SiteServer.CMS.StlParser.StlElement
             var wordNum = 0;
             var isKeyboard = false;
 
-            foreach (var name in contextInfo.Attributes.Keys)
+            foreach (var name in contextInfo.Attributes.AllKeys)
             {
                 var value = contextInfo.Attributes[name];
 
-                if (StringUtils.EqualsIgnoreCase(name, Type.Name))
+                if (StringUtils.EqualsIgnoreCase(name, Type))
                 {
                     type = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, EmptyText.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, EmptyText))
                 {
                     emptyText = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, TipText.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, TipText))
                 {
                     tipText = value;
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, WordNum.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, WordNum))
                 {
                     wordNum = TranslateUtils.ToInt(value);
                 }
-                else if (StringUtils.EqualsIgnoreCase(name, IsKeyboard.Name))
+                else if (StringUtils.EqualsIgnoreCase(name, IsKeyboard))
                 {
                     isKeyboard = TranslateUtils.ToBool(value);
                 }
@@ -82,7 +93,7 @@ namespace SiteServer.CMS.StlParser.StlElement
 
             string successTemplateString;
             string failureTemplateString;
-            StlInnerUtility.GetYesNo(contextInfo.InnerXml, out successTemplateString, out failureTemplateString);
+            StlParserUtility.GetYesNo(contextInfo.InnerHtml, out successTemplateString, out failureTemplateString);
 
             if (string.IsNullOrEmpty(successTemplateString))
             {
@@ -92,19 +103,19 @@ namespace SiteServer.CMS.StlParser.StlElement
                 {
                     var taxis = nodeInfo.Taxis;
                     var isNextChannel = !StringUtils.EqualsIgnoreCase(type, TypePreviousChannel);
-                    //var siblingChannelId = DataProvider.ChannelDao.GetIdByParentIdAndTaxis(nodeInfo.ParentId, taxis, isNextChannel);
-                    var siblingChannelId = Node.GetIdByParentIdAndTaxis(nodeInfo.ParentId, taxis, isNextChannel);
+                    //var siblingChannelId = DataProvider.Channel.GetIdByParentIdAndTaxis(nodeInfo.ParentId, taxis, isNextChannel);
+                    var siblingChannelId = StlChannelCache.GetIdByParentIdAndTaxis(nodeInfo.ParentId, taxis, isNextChannel);
                     if (siblingChannelId != 0)
                     {
                         var siblingNodeInfo = ChannelManager.GetChannelInfo(pageInfo.SiteId, siblingChannelId);
                         var url = PageUtility.GetChannelUrl(pageInfo.SiteInfo, siblingNodeInfo, pageInfo.IsLocal);
-                        if (url.Equals(PageUtils.UnclickedUrl))
+                        if (url.Equals(PageUtils.UnClickedUrl))
                         {
                             stlAnchor.Target = string.Empty;
                         }
                         stlAnchor.HRef = url;
 
-                        if (string.IsNullOrEmpty(contextInfo.InnerXml))
+                        if (string.IsNullOrEmpty(contextInfo.InnerHtml))
                         {
                             stlAnchor.InnerHtml = ChannelManager.GetChannelName(pageInfo.SiteId, siblingChannelId);
                             if (wordNum > 0)
@@ -115,7 +126,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                         else
                         {
                             contextInfo.ChannelId = siblingChannelId;
-                            var innerBuilder = new StringBuilder(contextInfo.InnerXml);
+                            var innerBuilder = new StringBuilder(contextInfo.InnerHtml);
                             StlParserManager.ParseInnerContent(innerBuilder, pageInfo, contextInfo);
                             stlAnchor.InnerHtml = innerBuilder.ToString();
                         }
@@ -128,14 +139,14 @@ namespace SiteServer.CMS.StlParser.StlElement
                         var taxis = contextInfo.ContentInfo.Taxis;
                         var isNextContent = !StringUtils.EqualsIgnoreCase(type, TypePreviousContent);
                         var tableName = ChannelManager.GetTableName(pageInfo.SiteInfo, contextInfo.ChannelId);
-                        //var siblingContentId = DataProvider.ContentDao.GetContentId(tableName, contextInfo.ChannelId, taxis, isNextContent);
-                        var siblingContentId = Content.GetContentId(tableName, contextInfo.ChannelId, taxis, isNextContent);
+                        //var siblingContentId = DataProvider.ContentRepository.GetContentId(tableName, contextInfo.ChannelId, taxis, isNextContent);
+                        var siblingContentId = StlContentCache.GetContentId(tableName, contextInfo.ChannelId, taxis, isNextContent);
                         if (siblingContentId != 0)
                         {
-                            //var siblingContentInfo = DataProvider.ContentDao.GetContentInfo(tableStyle, tableName, siblingContentId);
-                            var siblingContentInfo = Content.GetContentInfo(tableName, siblingContentId);
+                            //var siblingContentInfo = DataProvider.ContentRepository.GetContentInfo(tableStyle, tableName, siblingContentId);
+                            var siblingContentInfo = ContentManager.GetContentInfo(pageInfo.SiteInfo, contextInfo.ChannelId, siblingContentId);
                             var url = PageUtility.GetContentUrl(pageInfo.SiteInfo, siblingContentInfo, pageInfo.IsLocal);
-                            if (url.Equals(PageUtils.UnclickedUrl))
+                            if (url.Equals(PageUtils.UnClickedUrl))
                             {
                                 stlAnchor.Target = string.Empty;
                             }
@@ -157,7 +168,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                                 pageInfo.BodyCodes[nextOrPrevious] = scriptContent.ToString();
                             }
 
-                            if (string.IsNullOrEmpty(contextInfo.InnerXml))
+                            if (string.IsNullOrEmpty(contextInfo.InnerHtml))
                             {
                                 stlAnchor.InnerHtml = siblingContentInfo.Title;
                                 if (wordNum > 0)
@@ -167,7 +178,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                             }
                             else
                             {
-                                var innerBuilder = new StringBuilder(contextInfo.InnerXml);
+                                var innerBuilder = new StringBuilder(contextInfo.InnerHtml);
                                 contextInfo.ContentId = siblingContentId;
                                 StlParserManager.ParseInnerContent(innerBuilder, pageInfo, contextInfo);
                                 stlAnchor.InnerHtml = innerBuilder.ToString();
@@ -189,8 +200,8 @@ namespace SiteServer.CMS.StlParser.StlElement
                 {
                     var taxis = nodeInfo.Taxis;
                     var isNextChannel = !StringUtils.EqualsIgnoreCase(type, TypePreviousChannel);
-                    //var siblingChannelId = DataProvider.ChannelDao.GetIdByParentIdAndTaxis(nodeInfo.ParentId, taxis, isNextChannel);
-                    var siblingChannelId = Node.GetIdByParentIdAndTaxis(nodeInfo.ParentId, taxis, isNextChannel);
+                    //var siblingChannelId = DataProvider.Channel.GetIdByParentIdAndTaxis(nodeInfo.ParentId, taxis, isNextChannel);
+                    var siblingChannelId = StlChannelCache.GetIdByParentIdAndTaxis(nodeInfo.ParentId, taxis, isNextChannel);
                     if (siblingChannelId != 0)
                     {
                         isSuccess = true;
@@ -205,8 +216,8 @@ namespace SiteServer.CMS.StlParser.StlElement
                         var taxis = contextInfo.ContentInfo.Taxis;
                         var isNextContent = !StringUtils.EqualsIgnoreCase(type, TypePreviousContent);
                         var tableName = ChannelManager.GetTableName(pageInfo.SiteInfo, contextInfo.ChannelId);
-                        //var siblingContentId = DataProvider.ContentDao.GetContentId(tableName, contextInfo.ChannelId, taxis, isNextContent);
-                        var siblingContentId = Content.GetContentId(tableName, contextInfo.ChannelId, taxis, isNextContent);
+                        //var siblingContentId = DataProvider.ContentRepository.GetContentId(tableName, contextInfo.ChannelId, taxis, isNextContent);
+                        var siblingContentId = StlContentCache.GetContentId(tableName, contextInfo.ChannelId, taxis, isNextContent);
                         if (siblingContentId != 0)
                         {
                             isSuccess = true;

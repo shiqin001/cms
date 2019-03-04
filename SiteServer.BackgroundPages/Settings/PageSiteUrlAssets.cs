@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Web.UI.WebControls;
+using SiteServer.CMS.Caches;
 using SiteServer.Utils;
-using SiteServer.CMS.Core;
 
 namespace SiteServer.BackgroundPages.Settings
 {
@@ -19,7 +19,7 @@ namespace SiteServer.BackgroundPages.Settings
             if (IsForbidden) return;
             if (IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.Site);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.Site);
 
             var siteList = SiteManager.GetSiteIdListOrderByLevel();
             RptContents.DataSource = siteList;
@@ -43,8 +43,8 @@ namespace SiteServer.BackgroundPages.Settings
             ltlName.Text = SiteManager.GetSiteName(siteInfo);
             ltlDir.Text = siteInfo.SiteDir;
 
-            ltlAssetsDir.Text = siteInfo.Additional.AssetsDir;
-            ltlAssetsUrl.Text = $@"<a href=""{siteInfo.Additional.AssetsUrl}"" target=""_blank"">{siteInfo.Additional.AssetsUrl}</a>";
+            ltlAssetsDir.Text = siteInfo.AssetsDir;
+            ltlAssetsUrl.Text = $@"<a href=""{siteInfo.AssetsUrl}"" target=""_blank"">{siteInfo.AssetsUrl}</a>";
 
             ltlEditUrl.Text = $@"<a href=""{PageSiteUrlAssetsConfig.GetRedirectUrl(siteId)}"">修改</a>";
         }

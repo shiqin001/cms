@@ -1,14 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Web.UI.WebControls;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Plugin.Model;
+using SiteServer.CMS.Database.Models;
+using SiteServer.CMS.Plugin.Impl;
 using SiteServer.Plugin;
 using SiteServer.Utils;
 
 namespace SiteServer.CMS.Plugin
 {
-    public class PluginContentManager
+    public static class PluginContentManager
     {
         public static List<IMetadata> GetContentModelPlugins()
         {
@@ -16,9 +15,28 @@ namespace SiteServer.CMS.Plugin
 
             foreach (var service in PluginManager.Services)
             {
-                if (string.IsNullOrEmpty(service.ContentTableName) || service.ContentTableColumns == null || service.ContentTableColumns.Count == 0) continue;
+                if (PluginContentTableManager.IsContentTable(service))
+                {
+                    list.Add(service.Metadata);
+                }
+            }
 
-                list.Add(service.Metadata);
+            return list;
+        }
+
+        public static List<string> GetContentTableNameList()
+        {
+            var list = new List<string>();
+
+            foreach (var service in PluginManager.Services)
+            {
+                if (PluginContentTableManager.IsContentTable(service))
+                {
+                    if (!StringUtils.ContainsIgnoreCase(list, service.ContentTableName))
+                    {
+                        list.Add(service.ContentTableName);
+                    }
+                }
             }
 
             return list;
@@ -38,7 +56,11 @@ namespace SiteServer.CMS.Plugin
                 {
                     list.Add(service.Metadata);
                 }
-                else if (service.ContentLinks != null && service.ContentLinks.Count > 0)
+                else if (service.ContentMenuFuncs != null)
+                {
+                    list.Add(service.Metadata);
+                }
+                else if (service.ContentColumns != null && service.ContentColumns.Count > 0)
                 {
                     list.Add(service.Metadata);
                 }
@@ -47,9 +69,9 @@ namespace SiteServer.CMS.Plugin
             return list;
         }
 
-        public static List<PluginService> GetContentPlugins(ChannelInfo channelInfo, bool includeContentTable)
+        public static List<ServiceImpl> GetContentPlugins(ChannelInfo channelInfo, bool includeContentTable)
         {
-            var list = new List<PluginService>();
+            var list = new List<ServiceImpl>();
             var pluginIds = TranslateUtils.StringCollectionToStringList(channelInfo.ContentRelatedPluginIds);
             if (!string.IsNullOrEmpty(channelInfo.ContentModelPluginId))
             {
@@ -68,55 +90,36 @@ namespace SiteServer.CMS.Plugin
             return list;
         }
 
-        public static Dictionary<string, List<HyperLink>> GetContentLinks(ChannelInfo nodeInfo)
+        public static List<string> GetContentPluginIds(ChannelInfo channelInfo)
         {
-            if (string.IsNullOrEmpty(nodeInfo.ContentRelatedPluginIds) &&
-                string.IsNullOrEmpty(nodeInfo.ContentModelPluginId))
+            if (string.IsNullOrEmpty(channelInfo.ContentRelatedPluginIds) &&
+                string.IsNullOrEmpty(channelInfo.ContentModelPluginId))
             {
                 return null;
             }
 
-            var dict = new Dictionary<string, List<HyperLink>>();
-            var pluginIds = TranslateUtils.StringCollectionToStringList(nodeInfo.ContentRelatedPluginIds);
-            if (!string.IsNullOrEmpty(nodeInfo.ContentModelPluginId))
+            var pluginIds = TranslateUtils.StringCollectionToStringList(channelInfo.ContentRelatedPluginIds);
+            if (!string.IsNullOrEmpty(channelInfo.ContentModelPluginId))
             {
-                pluginIds.Add(nodeInfo.ContentModelPluginId);
+                pluginIds.Add(channelInfo.ContentModelPluginId);
             }
+
+            return pluginIds;
+        }
+
+        public static Dictionary<string, Dictionary<string, Func<IContentContext, string>>> GetContentColumns(List<string> pluginIds)
+        {
+            var dict = new Dictionary<string, Dictionary<string, Func<IContentContext, string>>>();
+            if (pluginIds == null || pluginIds.Count == 0) return dict;
 
             foreach (var service in PluginManager.Services)
             {
-                if (!pluginIds.Contains(service.PluginId) || service.ContentLinks == null || service.ContentLinks.Count == 0) continue;
+                if (!pluginIds.Contains(service.PluginId) || service.ContentColumns == null || service.ContentColumns.Count == 0) continue;
 
-                dict[service.PluginId] = service.ContentLinks;
+                dict[service.PluginId] = service.ContentColumns;
             }
 
             return dict;
         }
-
-        //public static Dictionary<string, Dictionary<string, Func<int, int, IAttributes, string>>> GetContentFormCustomized(ChannelInfo nodeInfo)
-        //{
-        //    if (string.IsNullOrEmpty(nodeInfo.ContentRelatedPluginIds) &&
-        //        string.IsNullOrEmpty(nodeInfo.ContentModelPluginId))
-        //    {
-        //        return null;
-        //    }
-
-        //    var dict = new Dictionary<string, Dictionary<string, Func<int, int, IAttributes, string>>>();
-
-        //    var pluginIds = TranslateUtils.StringCollectionToStringList(nodeInfo.ContentRelatedPluginIds);
-        //    if (!string.IsNullOrEmpty(nodeInfo.ContentModelPluginId))
-        //    {
-        //        pluginIds.Add(nodeInfo.ContentModelPluginId);
-        //    }
-
-        //    foreach (var service in PluginManager.Services)
-        //    {
-        //        if (!pluginIds.Contains(service.PluginId) || service.ContentFormCustomized == null || service.ContentFormCustomized.Count == 0) continue;
-
-        //        dict[service.PluginId] = service.ContentFormCustomized;
-        //    }
-
-        //    return dict;
-        //}
     }
 }

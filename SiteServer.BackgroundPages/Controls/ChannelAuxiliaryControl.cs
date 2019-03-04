@@ -1,17 +1,17 @@
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Text;
 using System.Web.UI;
-using SiteServer.Utils;
 using SiteServer.BackgroundPages.Core;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Database.Models;
 using SiteServer.Plugin;
 
 namespace SiteServer.BackgroundPages.Controls
 {
 	public class ChannelAuxiliaryControl : Control
 	{
-        public IAttributes Attributes { get; set; }
+        public IDictionary<string, object> Attributes { get; set; }
 
         public SiteInfo SiteInfo { get; set; }
 
@@ -23,8 +23,8 @@ namespace SiteServer.BackgroundPages.Controls
 		{
             if (Attributes == null) return;
 
-            var relatedIdentities = RelatedIdentities.GetChannelRelatedIdentities(SiteInfo.Id, ChannelId);
-            var styleInfoList = TableStyleManager.GetTableStyleInfoList(DataProvider.ChannelDao.TableName, relatedIdentities);
+		    var channelInfo = ChannelManager.GetChannelInfo(SiteInfo.Id, ChannelId);
+            var styleInfoList = TableStyleManager.GetChannelStyleInfoList(channelInfo);
 
 		    if (styleInfoList == null) return;
 
@@ -32,12 +32,11 @@ namespace SiteServer.BackgroundPages.Controls
 		    var pageScripts = new NameValueCollection();
 		    foreach (var styleInfo in styleInfoList)
 		    {
-		        string extra;
-		        var value = BackgroundInputTypeParser.Parse(SiteInfo, ChannelId, styleInfo, Attributes, pageScripts, out extra);
+		        var value = BackgroundInputTypeParser.Parse(SiteInfo, ChannelId, styleInfo, Attributes, pageScripts, out var extra);
 
 		        if (string.IsNullOrEmpty(value) && string.IsNullOrEmpty(extra)) continue;
 
-                if (InputTypeUtils.Equals(styleInfo.InputType, InputType.TextEditor))
+                if (styleInfo.Type == InputType.TextEditor)
                 {
                     builder.Append($@"
 <div class=""form-group form-row"">

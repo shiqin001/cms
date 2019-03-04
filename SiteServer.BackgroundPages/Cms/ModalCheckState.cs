@@ -1,14 +1,18 @@
 ﻿using System;
 using System.Collections.Specialized;
 using System.Web.UI.WebControls;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
 
 namespace SiteServer.BackgroundPages.Cms
 {
     public class ModalCheckState : BasePageCms
     {
+        protected override bool IsSinglePage => true;
         public Literal LtlTitle;
         public Literal LtlState;
         public PlaceHolder PhCheckReasons;
@@ -42,16 +46,15 @@ namespace SiteServer.BackgroundPages.Cms
             _contentId = AuthRequest.GetQueryInt("contentID");
             _returnUrl = StringUtils.ValueFromUrl(AuthRequest.GetQueryString("returnUrl"));
 
-            var contentInfo = DataProvider.ContentDao.GetContentInfo(_tableName, _contentId);
+            var contentInfo = ContentManager.GetContentInfo(SiteInfo, _channelId, _contentId);
 
-            int checkedLevel;
-            var isChecked = CheckManager.GetUserCheckLevel(AuthRequest.AdminPermissions, SiteInfo, SiteId, out checkedLevel);
-            BtnCheck.Visible = CheckManager.IsCheckable(SiteInfo, _channelId, contentInfo.IsChecked, contentInfo.CheckedLevel, isChecked, checkedLevel);
+            var isChecked = CheckManager.GetUserCheckLevel(AuthRequest.AdminPermissionsImpl, SiteInfo, SiteId, out var checkedLevel);
+            BtnCheck.Visible = CheckManager.IsCheckable(contentInfo.Checked, contentInfo.CheckedLevel, isChecked, checkedLevel);
 
             LtlTitle.Text = contentInfo.Title;
-            LtlState.Text = CheckManager.GetCheckState(SiteInfo, contentInfo.IsChecked, contentInfo.CheckedLevel);
+            LtlState.Text = CheckManager.GetCheckState(SiteInfo, contentInfo);
 
-            var checkInfoList = DataProvider.ContentCheckDao.GetCheckInfoList(_tableName, _contentId);
+            var checkInfoList = DataProvider.ContentCheck.GetCheckInfoList(_tableName, _contentId);
             if (checkInfoList.Count > 0)
             {
                 PhCheckReasons.Visible = true;

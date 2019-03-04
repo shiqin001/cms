@@ -1,15 +1,12 @@
-using System.Collections.Generic;
-using System.Xml;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.StlParser.Cache;
+using System.Collections.Specialized;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
+using SiteServer.CMS.Database.Models;
 
 namespace SiteServer.CMS.StlParser.Model
 {
     public class ContextInfo
     {
-        private ContentInfo _contentInfo;
-
         public ContextInfo(PageInfo pageInfo)
         {
             SiteInfo = pageInfo.SiteInfo;
@@ -24,6 +21,7 @@ namespace SiteServer.CMS.StlParser.Model
             SiteInfo = contextInfo.SiteInfo;
             ChannelId = contextInfo.ChannelId;
             ContentId = contextInfo.ContentId;
+            _channelInfo = contextInfo._channelInfo;
             _contentInfo = contextInfo._contentInfo;
 
             IsInnerElement = contextInfo.IsInnerElement;
@@ -32,20 +30,18 @@ namespace SiteServer.CMS.StlParser.Model
             ItemContainer = contextInfo.ItemContainer;
             ContainerClientId = contextInfo.ContainerClientId;
 
-            StlElement = contextInfo.StlElement;
+            OuterHtml = contextInfo.OuterHtml;
+            InnerHtml = contextInfo.InnerHtml;
             Attributes = contextInfo.Attributes;
-            InnerXml = contextInfo.InnerXml;
-            ChildNodes = contextInfo.ChildNodes;
         }
 
-        public ContextInfo Clone(string stlElement, Dictionary<string, string> attributes, string innerXml, XmlNodeList childNodes)
+        public ContextInfo Clone(string outerHtml, string innerHtml, NameValueCollection attributes)
         {
             var contextInfo = new ContextInfo(this)
             {
-                StlElement = stlElement,
-                Attributes = attributes,
-                InnerXml = innerXml,
-                ChildNodes = childNodes
+                OuterHtml = outerHtml,
+                InnerHtml = innerHtml,
+                Attributes = attributes
             };
             return contextInfo;
         }
@@ -64,24 +60,33 @@ namespace SiteServer.CMS.StlParser.Model
 
         public int ContentId { get; set; }
 
-        public string StlElement { get; set; }
+        public string OuterHtml { get; set; }
 
-        public Dictionary<string, string> Attributes { get; set; }
+        public string InnerHtml { get; set; }
 
-        public string InnerXml { get; set; }
+        public NameValueCollection Attributes { get; set; }
 
-        public XmlNodeList ChildNodes { get; set; }
+        private ChannelInfo _channelInfo;
+        public ChannelInfo ChannelInfo
+        {
+            get
+            {
+                if (_channelInfo != null) return _channelInfo;
+                if (ChannelId <= 0) return null;
+                _channelInfo = ChannelManager.GetChannelInfo(SiteInfo.Id, ChannelId);
+                return _channelInfo;
+            }
+            set { _channelInfo = value; }
+        }
 
+        private ContentInfo _contentInfo;
         public ContentInfo ContentInfo
         {
             get
             {
                 if (_contentInfo != null) return _contentInfo;
-                if (ContentId <= 0) return _contentInfo;
-                var nodeInfo = ChannelManager.GetChannelInfo(SiteInfo.Id, ChannelId);
-                var tableName = ChannelManager.GetTableName(SiteInfo, nodeInfo);
-                //_contentInfo = DataProvider.ContentDao.GetContentInfo(tableStyle, tableName, ContentId);
-                _contentInfo = Content.GetContentInfo(tableName, ContentId);
+                if (ContentId <= 0) return null;
+                _contentInfo = ContentManager.GetContentInfo(SiteInfo, ChannelId, ContentId);
                 return _contentInfo;
             }
             set { _contentInfo = value; }

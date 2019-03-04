@@ -1,49 +1,32 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Web.UI.WebControls;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
+using SiteServer.CMS.Core.Enumerations;
+using SiteServer.CMS.Database.Attributes;
 using SiteServer.Utils;
-using SiteServer.CMS.Model.Enumerations;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Utility;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "列表项循环", Description = "通过 stl:each 标签在模板中遍历指定的列表项")]
+    [StlElement(Title = "列表项循环", Description = "通过 stl:each 标签在模板中遍历指定的列表项")]
     public class StlEach
     {
         public const string ElementName = "stl:each";
 
-        private static readonly Attr Type = new Attr("type", "循环类型");
-        private static readonly Attr TotalNum = new Attr("totalNum", "显示信息数目");
-        private static readonly Attr StartNum = new Attr("startNum", "从第几条信息开始显示");
-        private static readonly Attr Order = new Attr("order", "排序");
-        private static readonly Attr CellPadding = new Attr("cellPadding", "填充");
-        private static readonly Attr CellSpacing = new Attr("cellSpacing", "间距");
-        private static readonly Attr Class = new Attr("class", "Css类");
-        private static readonly Attr Columns = new Attr("columns", "列数");
-        private static readonly Attr Direction = new Attr("direction", "方向");
-        private static readonly Attr Height = new Attr("height", "指定列表布局方式");
-        private static readonly Attr Width = new Attr("width", "整体高度");
-        private static readonly Attr Align = new Attr("align", "整体宽度");
-        private static readonly Attr ItemHeight = new Attr("itemHeight", "整体对齐");
-        private static readonly Attr ItemWidth = new Attr("itemWidth", "项高度");
-        private static readonly Attr ItemAlign = new Attr("itemAlign", "项宽度");
-        private static readonly Attr ItemVerticalAlign = new Attr("itemVerticalAlign", "项水平对齐");
-        private static readonly Attr ItemClass = new Attr("itemClass", "项垂直对齐");
-        private static readonly Attr Layout = new Attr("layout", "项Css类");
+        [StlAttribute(Title = "循环类型")]
+        private const string Type = nameof(Type);
 
         public static SortedList<string, string> TypeList => new SortedList<string, string>
         {
-            {BackgroundContentAttribute.ImageUrl, "遍历内容的图片字段"},
-            {BackgroundContentAttribute.VideoUrl, "遍历内容的视频字段"},
-            {BackgroundContentAttribute.FileUrl, "遍历内容的附件字段"}
+            {ContentAttribute.ImageUrl, "遍历内容的图片字段"},
+            {ContentAttribute.VideoUrl, "遍历内容的视频字段"},
+            {ContentAttribute.FileUrl, "遍历内容的附件字段"}
         };
 
         public static string Parse(PageInfo pageInfo, ContextInfo contextInfo)
         {
-            var listInfo = ListInfo.GetListInfoByXmlNode(pageInfo, contextInfo, EContextType.Content);
+            var listInfo = ListInfo.GetListInfo(pageInfo, contextInfo, EContextType.Content);
 
             return ParseImpl(pageInfo, contextInfo, listInfo);
         }
@@ -52,10 +35,10 @@ namespace SiteServer.CMS.StlParser.StlElement
         {
             var parsedContent = string.Empty;
 
-            var type = listInfo.Others.Get(Type.Name);
+            var type = listInfo.Others.Get(Type);
             if (string.IsNullOrEmpty(type))
             {
-                type = BackgroundContentAttribute.ImageUrl;
+                type = ContentAttribute.ImageUrl;
             }
 
             var contextType = EContextType.Each;
@@ -65,13 +48,14 @@ namespace SiteServer.CMS.StlParser.StlElement
             {
                 var eachList = new List<string>();
 
-                if (!string.IsNullOrEmpty(contentInfo.GetString(type)))
+                var value = contentInfo.Get<string>(type);
+                if (!string.IsNullOrEmpty(value))
                 {
-                    eachList.Add(contentInfo.GetString(type));
+                    eachList.Add(value);
                 }
 
                 var extendAttributeName = ContentAttribute.GetExtendAttributeName(type);
-                var extendValues = contentInfo.GetString(extendAttributeName);
+                var extendValues = contentInfo.Get<string>(extendAttributeName);
                 if (!string.IsNullOrEmpty(extendValues))
                 {
                     foreach (var extendValue in TranslateUtils.StringCollectionToStringList(extendValues))

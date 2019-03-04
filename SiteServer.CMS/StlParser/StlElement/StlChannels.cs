@@ -2,29 +2,30 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Web.UI.WebControls;
-using SiteServer.CMS.Core;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Core.Enumerations;
+using SiteServer.CMS.Database.Attributes;
 using SiteServer.Utils;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
-using SiteServer.CMS.Model.Enumerations;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Utility;
 using SiteServer.Utils.Enumerations;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "栏目列表", Description = "通过 stl:channels 标签在模板中显示栏目列表")]
+    [StlElement(Title = "栏目列表", Description = "通过 stl:channels 标签在模板中显示栏目列表")]
     public class StlChannels : StlListBase
     {
         public const string ElementName = "stl:channels";
 
-        
-        protected static readonly Attr IsTotal = new Attr("isTotal", "是否从所有栏目中选择", AttrType.Boolean);						//是否从所有栏目中选择（包括首页）
-        protected static readonly Attr IsAllChildren = new Attr("isAllChildren", "是否显示所有级别的子栏目", AttrType.Boolean);			//是否显示所有级别的子栏目
+        [StlAttribute(Title = "是否从所有栏目中选择")]
+        public const string IsTotal = nameof(IsTotal);
+
+        [StlAttribute(Title = "是否显示所有级别的子栏目")]
+        public const string IsAllChildren = nameof(IsAllChildren);
 
         public static object Parse(PageInfo pageInfo, ContextInfo contextInfo)
         {
-            var listInfo = ListInfo.GetListInfoByXmlNode(pageInfo, contextInfo, EContextType.Channel);
+            var listInfo = ListInfo.GetListInfo(pageInfo, contextInfo, EContextType.Channel);
 
             var dataSource = GetDataSource(pageInfo, contextInfo, listInfo);
 
@@ -42,9 +43,9 @@ namespace SiteServer.CMS.StlParser.StlElement
 
             channelId = StlDataUtility.GetChannelIdByChannelIdOrChannelIndexOrChannelName(pageInfo.SiteId, channelId, listInfo.ChannelIndex, listInfo.ChannelName);
 
-            var isTotal = TranslateUtils.ToBool(listInfo.Others.Get(IsTotal.Name));
+            var isTotal = TranslateUtils.ToBool(listInfo.Others.Get(IsTotal));
 
-            if (TranslateUtils.ToBool(listInfo.Others.Get(IsAllChildren.Name)))
+            if (TranslateUtils.ToBool(listInfo.Others.Get(IsAllChildren)))
             {
                 listInfo.Scope = EScopeType.Descendant;
             }
@@ -130,7 +131,7 @@ namespace SiteServer.CMS.StlParser.StlElement
 
         private static object ParseEntity(PageInfo pageInfo, DataSet dataSource)
         {
-            var channelInfoList = new List<ChannelInfo>();
+            var channelInfoList = new List<IDictionary<string,object>>();
             var table = dataSource.Tables[0];
             foreach (DataRow row in table.Rows)
             {
@@ -139,7 +140,7 @@ namespace SiteServer.CMS.StlParser.StlElement
                 var channelInfo = ChannelManager.GetChannelInfo(pageInfo.SiteId, channelId);
                 if (channelInfo != null)
                 {
-                    channelInfoList.Add(channelInfo);
+                    channelInfoList.Add(channelInfo.ToDictionary());
                 }
             }
 

@@ -2,7 +2,7 @@
 using System.Web.UI;
 using SiteServer.CMS.Core;
 using SiteServer.Utils;
-using SiteServer.CMS.Plugin;
+using SiteServer.CMS.Plugin.Impl;
 
 namespace SiteServer.BackgroundPages
 {
@@ -16,15 +16,15 @@ namespace SiteServer.BackgroundPages
 
         protected virtual bool IsSinglePage => false; // 是否为单页（即是否需要放在框架页内运行,false表示需要）
 
-        protected virtual bool IsInstallerPage => false; // 是否为系统安装页面
-
         public string IsNightly => WebConfigUtils.IsNightlyUpdate.ToString().ToLower(); // 系统是否允许升级到最新的开发版本
 
         public string Version => SystemManager.PluginVersion; // 系统采用的插件API版本号
 
         protected bool IsForbidden { get; private set; }
 
-        public AuthRequest AuthRequest { get; private set; }
+#pragma warning disable CS0612 // '“RequestImpl”已过时
+        public RequestImpl AuthRequest { get; private set; }
+#pragma warning restore CS0612 // '“RequestImpl”已过时
 
         private void SetMessage(MessageUtils.Message.EMessageType messageType, Exception ex, string message)
         {
@@ -36,36 +36,16 @@ namespace SiteServer.BackgroundPages
         {
             base.OnInit(e);
 
-            AuthRequest = new AuthRequest(Request);
-
-            if (!IsInstallerPage)
-            {
-                if (string.IsNullOrEmpty(WebConfigUtils.ConnectionString))
-                {
-                    PageUtils.Redirect(PageUtils.GetAdminDirectoryUrl("Installer"));
-                    return;
-                }
-
-                if (ConfigManager.Instance.IsInitialized && ConfigManager.Instance.DatabaseVersion != SystemManager.Version)
-                {
-                    PageUtils.Redirect(PageSyncDatabase.GetRedirectUrl());
-                    return;
-                }
-            }
+#pragma warning disable CS0612 // '“RequestImpl”已过时
+            AuthRequest = new RequestImpl(Request);
+#pragma warning restore CS0612 // '“RequestImpl”已过时
 
             if (!IsAccessable) // 如果页面不能直接访问且又没有登录则直接跳登录页
             {
-                if (!AuthRequest.IsAdminLoggin || AuthRequest.AdminInfo == null) // 检测管理员是否登录
+                if (!AuthRequest.IsAdminLoggin || AuthRequest.AdminInfo == null || AuthRequest.AdminInfo.Locked) // 检测管理员是否登录，检测管理员帐号是否被锁定
                 {
                     IsForbidden = true;
                     PageUtils.RedirectToLoginPage();
-                    return;
-                }
-
-                if (AuthRequest.AdminInfo.IsLockedOut) // 检测管理员帐号是否被锁定
-                {
-                    IsForbidden = true;
-                    PageUtils.RedirectToLoginPage("对不起，您的账号已被锁定，无法进入系统！");
                     return;
                 }
             }
@@ -88,8 +68,8 @@ namespace SiteServer.BackgroundPages
             if (!IsAccessable && !IsSinglePage) // 页面不能直接访问且不是单页，需要加一段框架检测代码，检测页面是否运行在框架内
             {
                 writer.Write($@"<script type=""text/javascript"">
-if (window.top.location.href.toLowerCase().indexOf(""main.aspx"") == -1){{
-	window.top.location.href = ""{PageInitialization.GetRedirectUrl()}"";
+if (window.top.location.href.toLowerCase().indexOf(""main.cshtml"") == -1){{
+	window.top.location.href = ""{PageUtils.GetMainUrl(0, string.Empty)}"";
 }}
 </script>");
             }
@@ -207,34 +187,19 @@ setTimeout(function() {{
             return ControlUtils.FindControlBySelfAndChildren(controlId, this);
         }
 
-        public void VerifyAdministratorPermissions(params string[] permissionArray)
+        public void VerifySystemPermissions(params string[] permissionArray)
         {
-            if (AuthRequest.AdminPermissions.HasAdministratorPermissions(permissionArray))
+            if (AuthRequest.AdminPermissionsImpl.HasSystemPermissions(permissionArray))
             {
                 return;
             }
             AuthRequest.AdminLogout();
-            PageUtils.Redirect(PageUtils.GetAdminDirectoryUrl(string.Empty));
+            PageUtils.Redirect(PageUtils.GetAdminUrl(string.Empty));
         }
 
         public virtual void Submit_OnClick(object sender, EventArgs e)
         {
             LayerUtils.Close(Page);
-        }
-
-        public static string GetShowHintScript()
-        {
-            return GetShowHintScript("操作进行中");
-        }
-
-        public static string GetShowHintScript(string message)
-        {
-            return GetShowHintScript(message, 120);
-        }
-
-        public static string GetShowHintScript(string message, int top)
-        {
-            return $@"hideBoxAndShowHint(this, '{message}, 请稍候...', {top});";
         }
 
         public void ClientScriptRegisterClientScriptBlock(string key, string script)

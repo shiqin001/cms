@@ -2,12 +2,8 @@
 
 namespace SiteServer.Utils
 {
-    public class LayerUtils
+    public static class LayerUtils
     {
-        private LayerUtils()
-        {
-        }
-
         public const string CloseScript = "if (window.parent.closeWindow) window.parent.closeWindow();if (window.parent.layer) window.parent.layer.closeAll();";
 
         public const string OpenPageCreateStatusFuncName = "openPageCreateStatus";

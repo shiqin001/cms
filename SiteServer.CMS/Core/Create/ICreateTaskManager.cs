@@ -1,5 +1,4 @@
 ﻿using System;
-using SiteServer.CMS.Model;
 
 namespace SiteServer.CMS.Core.Create
 {
@@ -7,11 +6,9 @@ namespace SiteServer.CMS.Core.Create
     {
         void AddPendingTask(CreateTaskInfo task);
 
-        int GetPendingTaskCount(int siteId);
+        int PendingTaskCount { get; }
 
-        CreateTaskInfo GetAndRemoveLastPendingTask(int siteId);
-
-        void RemoveCurrent(int siteId, CreateTaskInfo taskInfo);
+        CreateTaskInfo GetAndRemoveFirstPendingTask();
 
         void AddSuccessLog(CreateTaskInfo taskInfo, string timeSpan);
 

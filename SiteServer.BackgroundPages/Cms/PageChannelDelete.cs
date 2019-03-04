@@ -5,7 +5,10 @@ using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.CMS.Core;
 using System.Collections.Generic;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
 using SiteServer.CMS.Core.Create;
+using SiteServer.CMS.Database.Core;
 
 namespace SiteServer.BackgroundPages.Cms
 {
@@ -46,11 +49,13 @@ namespace SiteServer.BackgroundPages.Cms
                 if (channelId == SiteId) continue;
                 if (!HasChannelPermissions(channelId, ConfigManager.ChannelPermissions.ChannelDelete)) continue;
 
-                var nodeInfo = ChannelManager.GetChannelInfo(SiteId, channelId);
-                var displayName = nodeInfo.ChannelName;
-                if (nodeInfo.ContentNum > 0)
+                var channelInfo = ChannelManager.GetChannelInfo(SiteId, channelId);
+                var onlyAdminId = AuthRequest.AdminPermissionsImpl.GetOnlyAdminId(SiteId, channelId);
+                var displayName = channelInfo.ChannelName;
+                var count = ContentManager.GetCount(SiteInfo, channelInfo, onlyAdminId);
+                if (count > 0)
                 {
-                    displayName += $"({nodeInfo.ContentNum})";
+                    displayName += $"({count})";
                 }
                 _nodeNameList.Add(displayName);
             }
@@ -115,10 +120,15 @@ namespace SiteServer.BackgroundPages.Cms
 
                     foreach (var channelId in channelIdListToDelete)
                     {
-                        var tableName = ChannelManager.GetTableName(SiteInfo, channelId);
-                        var contentIdList = DataProvider.ContentDao.GetContentIdList(tableName, channelId);
+                        var channelInfo = ChannelManager.GetChannelInfo(SiteId, channelId);
+                        var contentIdList = channelInfo.ContentRepository.GetContentIdList(channelId);
                         DeleteManager.DeleteContents(SiteInfo, channelId, contentIdList);
-                        DataProvider.ContentDao.TrashContents(SiteId, tableName, contentIdList);
+                        channelInfo.ContentRepository.UpdateTrashContents(SiteId, channelId, contentIdList);
+
+                        //var tableName = ChannelManager.GetTableName(SiteInfo, channelId);
+                        //var contentIdList = DataProvider.ContentRepository.GetContentIdList(tableName, channelId);
+                        //DeleteManager.DeleteContents(SiteInfo, channelId, contentIdList);
+                        //DataProvider.ContentRepository.UpdateTrashContents(SiteId, channelId, tableName, contentIdList);
                     }
 
                     AuthRequest.AddSiteLog(SiteId, "清空栏目下的内容", $"栏目:{builder}");
@@ -137,9 +147,9 @@ namespace SiteServer.BackgroundPages.Cms
 
                     foreach (var channelId in channelIdListToDelete)
                     {
-                        var tableName = ChannelManager.GetTableName(SiteInfo, channelId);
-                        DataProvider.ContentDao.TrashContentsByChannelId(SiteId, tableName, channelId);
-                        DataProvider.ChannelDao.Delete(SiteId, channelId);
+                        var channelInfo = ChannelManager.GetChannelInfo(SiteId, channelId);
+                        channelInfo.ContentRepository.UpdateTrashContentsByChannelId(SiteId, channelId);
+                        DataProvider.Channel.Delete(SiteId, channelId);
                     }
 
                     AuthRequest.AddSiteLog(SiteId, "删除栏目", $"栏目:{builder}");

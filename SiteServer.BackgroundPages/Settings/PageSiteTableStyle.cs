@@ -4,8 +4,10 @@ using System.Collections.Specialized;
 using System.Web.UI.WebControls;
 using SiteServer.Utils;
 using SiteServer.BackgroundPages.Cms;
+using SiteServer.CMS.Caches;
 using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
 
 namespace SiteServer.BackgroundPages.Settings
 {
@@ -31,7 +33,8 @@ namespace SiteServer.BackgroundPages.Settings
 
         public string GetReturnUrl()
         {
-            return PageSiteAuxiliaryTable.GetRedirectUrl();
+            return string.Empty;
+            //return PageSiteAuxiliaryTable.GetRedirectUrl();
         }
 
         public void Page_Load(object sender, EventArgs e)
@@ -43,20 +46,20 @@ namespace SiteServer.BackgroundPages.Settings
 
             if (IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.Site);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.Site);
 
             if (AuthRequest.IsQueryExists("DeleteStyle"))
             {
                 var attributeName = AuthRequest.GetQueryString("AttributeName");
                 if (TableStyleManager.IsExists(0, _tableName, attributeName))
                 {
-                    TableStyleManager.Delete(0, _tableName, attributeName);
+                    DataProvider.TableStyle.Delete(0, _tableName, attributeName);
                     AuthRequest.AddAdminLog("删除数据表单样式", $"表单:{_tableName},字段:{attributeName}");
                     SuccessDeleteMessage();
                 }
             }
 
-            var styleInfoList = TableStyleManager.GetTableStyleInfoList(_tableName, new List<int> {0});
+            var styleInfoList = TableStyleManager.GetStyleInfoList(_tableName, TableStyleManager.EmptyRelatedIdentities);
 
             RptContents.DataSource = styleInfoList;
             RptContents.ItemDataBound += RptContents_ItemDataBound;
@@ -92,8 +95,11 @@ namespace SiteServer.BackgroundPages.Settings
             ltlAttributeName.Text = styleInfo.AttributeName;
 
             ltlDisplayName.Text = styleInfo.DisplayName;
-            ltlInputType.Text = InputTypeUtils.GetText(styleInfo.InputType);
-            ltlFieldType.Text = TableMetadataManager.IsAttributeNameExists(_tableName, styleInfo.AttributeName) ? $"真实 {TableMetadataManager.GetTableMetadataDataType(_tableName, styleInfo.AttributeName)}" : "虚拟字段";
+            ltlInputType.Text = InputTypeUtils.GetText(styleInfo.Type);
+
+            var columnInfo = TableColumnManager.GetTableColumnInfo(_tableName, styleInfo.AttributeName);
+
+            ltlFieldType.Text = columnInfo != null ? $"真实 {DataTypeUtils.GetText(columnInfo.DataType)}" : "虚拟字段";
 
             ltlValidate.Text = TableStyleManager.GetValidateInfo(styleInfo);
 
@@ -119,7 +125,7 @@ namespace SiteServer.BackgroundPages.Settings
 
         public void Return_OnClick(object sender, EventArgs e)
         {
-            PageUtils.Redirect(PageSiteAuxiliaryTable.GetRedirectUrl());
+            PageUtils.Redirect(string.Empty);
         }
     }
 }

@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Specialized;
 using System.Web.UI.WebControls;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Database.Core;
+using SiteServer.CMS.Database.Models;
 using SiteServer.Utils;
 using SiteServer.Utils.Enumerations;
 
@@ -12,6 +13,7 @@ namespace SiteServer.BackgroundPages.Settings
     {
         public Literal LtlPageTitle;
         public TextBox TbUserName;
+        public DropDownList DdlGroupId;
         public TextBox TbDisplayName;
         public PlaceHolder PhPassword;
         public TextBox TbPassword;
@@ -49,16 +51,22 @@ namespace SiteServer.BackgroundPages.Settings
 
             if (IsPostBack) return;
 
-            VerifyAdministratorPermissions(ConfigManager.SettingsPermissions.User);
+            VerifySystemPermissions(ConfigManager.SettingsPermissions.User);
 
             LtlPageTitle.Text = _userId == 0 ? "添加用户" : "编辑用户";
 
+            foreach (var groupInfo in UserGroupManager.GetUserGroupInfoList())
+            {
+                DdlGroupId.Items.Add(new ListItem(groupInfo.GroupName, groupInfo.Id.ToString()));
+            }
+
             if (_userId > 0)
             {
-                var userInfo = DataProvider.UserDao.GetUserInfo(_userId);
+                var userInfo = UserManager.GetUserInfoByUserId(_userId);
                 if (userInfo != null)
                 {
                     TbUserName.Text = userInfo.UserName;
+                    ControlUtils.SelectSingleItem(DdlGroupId, userInfo.GroupId.ToString());
                     TbUserName.Enabled = false;
                     TbDisplayName.Text = userInfo.DisplayName;
                     PhPassword.Visible = false;
@@ -67,9 +75,9 @@ namespace SiteServer.BackgroundPages.Settings
                 }
             }
 
-            if (!EUserPasswordRestrictionUtils.Equals(ConfigManager.SystemConfigInfo.UserPasswordRestriction, EUserPasswordRestriction.None))
+            if (!EUserPasswordRestrictionUtils.Equals(ConfigManager.Instance.UserPasswordRestriction, EUserPasswordRestriction.None))
             {
-                LtlPasswordTips.Text = $"请包含{EUserPasswordRestrictionUtils.GetText(EUserPasswordRestrictionUtils.GetEnumType(ConfigManager.SystemConfigInfo.UserPasswordRestriction))}";
+                LtlPasswordTips.Text = $"请包含{EUserPasswordRestrictionUtils.GetText(EUserPasswordRestrictionUtils.GetEnumType(ConfigManager.Instance.UserPasswordRestriction))}";
             }
 
             if (!string.IsNullOrEmpty(_returnUrl))
@@ -94,17 +102,18 @@ namespace SiteServer.BackgroundPages.Settings
                     Password = TbPassword.Text,
                     CreateDate = DateTime.Now,
                     LastActivityDate = DateUtils.SqlMinValue,
-                    IsChecked = true,
-                    IsLockedOut = false,
+                    Checked = true,
+                    Locked = false,
                     DisplayName = TbDisplayName.Text,
                     Email = TbEmail.Text,
-                    Mobile = TbMobile.Text
+                    Mobile = TbMobile.Text,
+                    GroupId = TranslateUtils.ToInt(DdlGroupId.SelectedValue)
                 };
 
                 string errorMessage;
-                var isCreated = DataProvider.UserDao.Insert(userInfo, userInfo.Password, string.Empty, out errorMessage);
+                var userId = DataProvider.User.Insert(userInfo, userInfo.Password, string.Empty, out errorMessage);
 
-                if (isCreated)
+                if (userId > 0)
                 {
                     AuthRequest.AddAdminLog("添加用户",
                         $"用户:{TbUserName.Text}");
@@ -119,13 +128,14 @@ namespace SiteServer.BackgroundPages.Settings
             }
             else
             {
-                var userInfo = DataProvider.UserDao.GetUserInfo(_userId);
+                var userInfo = UserManager.GetUserInfoByUserId(_userId);
 
+                userInfo.GroupId = TranslateUtils.ToInt(DdlGroupId.SelectedValue);
                 userInfo.DisplayName = TbDisplayName.Text;
                 userInfo.Email = TbEmail.Text;
                 userInfo.Mobile = TbMobile.Text;
 
-                DataProvider.UserDao.Update(userInfo);
+                DataProvider.User.Update(userInfo);
 
                 AuthRequest.AddAdminLog("修改用户",
                     $"用户:{TbUserName.Text}");

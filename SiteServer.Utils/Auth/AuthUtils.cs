@@ -1,37 +1,33 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.IO;
+using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace SiteServer.Utils.Auth
 {
     public static class AuthUtils
     {
-        public static string GetAdminTokenByAdminName(string administratorName, DateTime addDate)
+        public static string Md5ByFilePath(string filePath)
         {
-            if (string.IsNullOrEmpty(administratorName)) return null;
-
-            var administratorToken = new AdministratorToken()
+            using (var md5 = MD5.Create())
             {
-                AdministratorName = administratorName,
-                AddDate = addDate
-            };
-
-            return JsonWebToken.Encode(administratorToken, WebConfigUtils.SecretKey, JwtHashAlgorithm.HS256);
+                using (var stream = File.OpenRead(filePath))
+                {
+                    var hash = md5.ComputeHash(stream);
+                    return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+                }
+            }
         }
 
-        public static string GetUserTokenByUserName(string userName)
+        public static string Md5ByString(string str)
         {
-            if (string.IsNullOrEmpty(userName)) return null;
-
-            var userToken = new UserToken
+            if (string.IsNullOrEmpty(str)) return string.Empty;
+            var bytes = Encoding.UTF8.GetBytes(str);
+            using (var md5 = MD5.Create())
             {
-                UserName = userName,
-                AddDate = DateTime.Now
-            };
-
-            return JsonWebToken.Encode(userToken, WebConfigUtils.SecretKey, JwtHashAlgorithm.HS256);
+                var hash = md5.ComputeHash(bytes);
+                return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+            }
         }
     }
 }

@@ -1,13 +1,28 @@
 using System.Collections;
 using System.Collections.Generic;
-using SiteServer.Utils;
+using System.Web;
 using SiteServer.CMS.Plugin;
-using SiteServer.Plugin;
+using SiteServer.Utils;
 
 namespace SiteServer.CMS.Core
 {
     public static class TabManager
 	{
+	    public static TabCollection GetTabs(string filePath)
+	    {
+	        if (filePath.StartsWith("/") || filePath.StartsWith("~"))
+	        {
+	            filePath = HttpContext.Current.Server.MapPath(filePath);
+	        }
+
+	        var tc = CacheUtils.Get(filePath) as TabCollection;
+	        if (tc != null) return tc;
+
+	        tc = (TabCollection)Serializer.ConvertFileToObject(filePath, typeof(TabCollection));
+	        CacheUtils.Insert(filePath, tc, filePath);
+	        return tc;
+	    }
+
         public static List<Tab> GetTopMenuTabs()
         {
             var list = new List<Tab>();
@@ -15,7 +30,7 @@ namespace SiteServer.CMS.Core
             var menuPath = PathUtils.GetMenusPath("Top.config");
             if (!FileUtils.IsFileExists(menuPath)) return list;
 
-            var tabs = TabCollection.GetTabs(menuPath);
+            var tabs = GetTabs(menuPath);
             foreach (var parent in tabs.Tabs)
             {
                 list.Add(parent);
@@ -23,6 +38,26 @@ namespace SiteServer.CMS.Core
 
             return list;
         }
+
+	    public static List<Tab> GetTopMenuTabsWithChildren()
+	    {
+	        var list = new List<Tab>();
+
+	        var menuPath = PathUtils.GetMenusPath("Top.config");
+	        if (!FileUtils.IsFileExists(menuPath)) return list;
+
+	        var tabs = GetTabs(menuPath);
+	        foreach (var parent in tabs.Tabs)
+	        {
+	            if (parent.HasChildren)
+	            {
+
+	            }
+	            list.Add(parent);
+	        }
+
+	        return list;
+	    }
 
         public static bool IsValid(Tab tab, IList permissionList)
         {
@@ -46,7 +81,7 @@ namespace SiteServer.CMS.Core
             return true;
         }
 
-        private static Tab GetPluginTab(Menu menu, string permission)
+        private static Tab GetPluginTab(SiteServer.Plugin.Menu menu, string permission)
         {
             var tab = new Tab
             {
@@ -76,7 +111,7 @@ namespace SiteServer.CMS.Core
             if (!string.IsNullOrEmpty(topId))
             {
                 var filePath = PathUtils.GetMenusPath($"{topId}.config");
-                var tabCollection = TabCollection.GetTabs(filePath);
+                var tabCollection = GetTabs(filePath);
                 if (tabCollection?.Tabs != null)
                 {
                     foreach (var tabCollectionTab in tabCollection.Tabs)
@@ -86,7 +121,7 @@ namespace SiteServer.CMS.Core
                 }
             }
 
-            var menus = new Dictionary<string, Menu>();
+            var menus = new Dictionary<string, SiteServer.Plugin.Menu>();
             if (siteId > 0 && topId == string.Empty)
             {
                 var siteMenus = PluginMenuManager.GetSiteMenus(siteId);

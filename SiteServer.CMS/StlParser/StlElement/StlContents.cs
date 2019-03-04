@@ -2,39 +2,36 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Web.UI.WebControls;
-using SiteServer.CMS.Core;
-using SiteServer.CMS.Model;
-using SiteServer.CMS.Model.Attributes;
+using SiteServer.CMS.Caches;
+using SiteServer.CMS.Caches.Content;
+using SiteServer.CMS.Core.Enumerations;
+using SiteServer.CMS.Database.Attributes;
 using SiteServer.Utils;
-using SiteServer.CMS.Model.Enumerations;
 using SiteServer.CMS.StlParser.Model;
 using SiteServer.CMS.StlParser.Utility;
 
 namespace SiteServer.CMS.StlParser.StlElement
 {
-    [StlClass(Usage = "内容列表", Description = "通过 stl:contents 标签在模板中显示内容列表")]
+    [StlElement(Title = "内容列表", Description = "通过 stl:contents 标签在模板中显示内容列表")]
     public class StlContents : StlListBase
     {
         public const string ElementName = "stl:contents";
 
         public static object Parse(PageInfo pageInfo, ContextInfo contextInfo)
         {
-            var listInfo = ListInfo.GetListInfoByXmlNode(pageInfo, contextInfo, EContextType.Content);
+            var listInfo = ListInfo.GetListInfo(pageInfo, contextInfo, EContextType.Content);
             var dataSource = GetDataSource(pageInfo, contextInfo, listInfo);
 
-            if (contextInfo.IsStlEntity)
-            {
-                return ParseEntity(pageInfo, dataSource);
-            }
-
-            return ParseElement(pageInfo, contextInfo, listInfo, dataSource);
+            return contextInfo.IsStlEntity
+                ? ParseEntity(pageInfo, dataSource)
+                : ParseElement(pageInfo, contextInfo, listInfo, dataSource);
         }
 
-        public static DataSet GetDataSource(PageInfo pageInfo, ContextInfo contextInfo, ListInfo listInfo)
+        private static DataSet GetDataSource(PageInfo pageInfo, ContextInfo contextInfo, ListInfo listInfo)
         {
             var channelId = StlDataUtility.GetChannelIdByLevel(pageInfo.SiteId, contextInfo.ChannelId, listInfo.UpLevel, listInfo.TopLevel);
 
-            channelId = StlDataUtility.GetChannelIdByChannelIdOrChannelIndexOrChannelName(pageInfo.SiteId, channelId, listInfo.ChannelIndex, listInfo.ChannelName);
+            channelId = ChannelManager.GetChannelId(pageInfo.SiteId, channelId, listInfo.ChannelIndex, listInfo.ChannelName);
 
             return StlDataUtility.GetContentsDataSource(pageInfo.SiteInfo, channelId, contextInfo.ContentId, listInfo.GroupContent, listInfo.GroupContentNot, listInfo.Tags, listInfo.IsImageExists, listInfo.IsImage, listInfo.IsVideoExists, listInfo.IsVideo, listInfo.IsFileExists, listInfo.IsFile, listInfo.IsRelatedContents, listInfo.StartNum, listInfo.TotalNum, listInfo.OrderByString, listInfo.IsTopExists, listInfo.IsTop, listInfo.IsRecommendExists, listInfo.IsRecommend, listInfo.IsHotExists, listInfo.IsHot, listInfo.IsColorExists, listInfo.IsColor, listInfo.Where, listInfo.Scope, listInfo.GroupChannel, listInfo.GroupChannelNot, listInfo.Others);
         }
@@ -117,19 +114,19 @@ namespace SiteServer.CMS.StlParser.StlElement
 
         private static object ParseEntity(PageInfo pageInfo, DataSet dataSource)
         {
-            var contentInfoList = new List<ContentInfo>();
+            var contentInfoList = new List<IDictionary<string, object>>();
+
             var table = dataSource.Tables[0];
             foreach (DataRow row in table.Rows)
             {
                 var contentId = Convert.ToInt32(row[nameof(ContentAttribute.Id)]);
                 var channelId = Convert.ToInt32(row[nameof(ContentAttribute.ChannelId)]);
 
-                var tableName = ChannelManager.GetTableName(pageInfo.SiteInfo, channelId);
-                var contentInfo = DataProvider.ContentDao.GetContentInfo(tableName, contentId);
+                var contentInfo = ContentManager.GetContentInfo(pageInfo.SiteInfo, channelId, contentId);
 
                 if (contentInfo != null)
                 {
-                    contentInfoList.Add(contentInfo);
+                    contentInfoList.Add(contentInfo.ToDictionary());
                 }
             }
 
