@@ -1,0 +1,41 @@
+version: "3.7"
+
+volumes:
+
+  volume-sscms:
+    driver: local
+
+services:
+
+  reverse-proxy:
+    image: "sscms/nginx"
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: always
+
+  cache:
+    image: "redis"
+    ports:
+      - "6379:6379"
+    restart: always
+
+  sscms:
+    depends_on:
+      - reverse-proxy
+      - cache
+    image: "sscms/core"
+    expose:
+      - "80"
+    environment:
+      SSCMS_SECURITY_KEY: ${SSCMS_SECURITY_KEY:?请设置随机生成的 SSCMS_SECURITY_KEY}
+      SSCMS_DATABASE_TYPE: SQLite
+      SSCMS_REDIS_HOST: redis://cache
+    volumes:
+      - volume-sscms:/app/wwwroot
+    restart: always
+
+# docker-compose up -d --scale sscms=4
+# docker-compose down
+
+# Browse to: http://localhost/ss-admin/

@@ -1,0 +1,43 @@
+﻿using Datory;
+using Datory.Annotations;
+using SSCMS.Enums;
+
+namespace SSCMS.Models
+{
+    [DataTable("siteserver_WxAccount")]
+    public class WxAccount : Entity
+    {
+        [DataColumn]
+        public int SiteId { get; set; }
+
+        [DataColumn]
+        public bool IsEnabled { get; set; }
+
+        [DataColumn]
+        public string MpName { get; set; }
+
+        [DataColumn]
+        public WxMpType MpType { get; set; }
+
+        [DataColumn]
+        public string MpAppId { get; set; }
+
+        [DataColumn]
+        public string MpAppSecret { get; set; }
+
+        [DataColumn]
+        public string MpToken { get; set; }
+
+        [DataColumn]
+        public bool MpIsEncrypt { get; set; }
+
+        [DataColumn]
+        public string MpEncodingAESKey { get; set; }
+
+        [DataColumn]
+        public int MpReplyBeAddedMessageId { get; set; }
+
+        [DataColumn]
+        public int MpReplyAutoMessageId { get; set; }
+    }
+}
